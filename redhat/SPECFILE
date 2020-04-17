@@ -1,0 +1,81 @@
+# -*- tab-width:  4 -*- ;; Emacs
+# vi: set noexpandtab   :: Vi/ViM
+# vi: set filetype=spec ::
+############################################################ HEADER
+
+Name: viotop
+Group: Applications/FrauBSD
+# For a list of groups, see pkgcenter/redhat/Mk/GROUPS
+
+Summary: viotop
+License: BSD
+Version: 1.0
+Release: 1
+Buildarch: noarch
+
+URL: https://www.fraubsd.org/viotop
+Packager: Devin Teske <dteske@freebsd.org>
+Vendor: The FrauBSD Project https://www.fraubsd.org/
+
+BuildRoot: %{_tmppath}/src
+
+Requires: /bin/awk
+Requires: /bin/sh
+Requires: bpftool
+Requires: bpftrace
+Requires: lsof
+
+############################################################ DESCRIPTION
+
+%Description
+Generate top-like statistics for Linux VFS I/O using bpftrace
+
+WWW: https://www.fraubsd.org/viotop
+
+############################################################ MACROS
+
+#
+# Define how we should install the files into the temporary
+# install-root from which the RPM will be compiled.
+#
+%define TAR          %{__tar}
+%define TARFROMFLAGS c --exclude CVS -f - -C
+%define TARFILES     .
+%define TARTOFLAGS   xvf - -C
+
+#
+# Short-hand
+#
+# NOTE: $RPM_BUILD_ROOT has a trailing-slash
+#
+%define TMPROOT $RPM_BUILD_ROOT
+
+############################################################ INSTALL STANZA
+
+%install
+%{__mkdir_p} %{TMPROOT}
+%{TAR} %{TARFROMFLAGS} %{_srcdir} %{TARFILES} | %{TAR} %{TARTOFLAGS} %{TMPROOT}
+
+############################################################ FILES STANZA
+
+%files
+%defattr(-,root,root)
+/usr/bin/viotop
+
+############################################################ FOOTER
+
+%pre
+
+
+%post
+
+
+%preun
+
+
+%postun
+
+
+%changelog
+* Fri Apr 17 2020 Devin Teske <dteske@fraubsd.org> 1.0-1
+- Package created.

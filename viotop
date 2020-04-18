@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-17 18:12:42 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-17 18:15:20 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 1.0.1 $'
+VERSION='$Version: 1.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1107,6 +1107,7 @@ EOF
 
 } | awk -v cols=$cols \
 	-v debug=${DEBUG:-0} \
+	-v filter_type=${FILTER_TYPE:+1} \
 	-v interval=$INTERVAL_SECONDS \
 	-v no_names=${NO_NAMES:-0} \
 	-v nsamples=${NSAMPLES:-0} \
@@ -1290,7 +1291,7 @@ EOF
 		map_value = $NF
 
 		map_skey = ""
-		if (map_view == "user" || map_view == "group") {
+		if (map_view != "type" && !filter_type) {
 			map_key = sprintf("%s, %d",
 				map_keys[1], int(map_keys[2]))
 			map_skey = sprintf("*, %d", int(map_keys[2]))

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-17 18:15:20 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-17 18:22:10 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 1.1 $'
+VERSION='$Version: 2.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -29,14 +29,16 @@ DEBUG=					# -d
 FILTER_GROUP=				# -G group
 FILTER_TYPE=				# -T type
 FILTER_USER=				# -U user
+FILTER_PID=				# -P pid
 INTERVAL=$DEFAULT_INTERVAL		# -i sec
 NO_NAMES=				# -n
 NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
 RAW_VIEW=				# -r
 VIEW_GROUP=				# -g
+VIEW_PID=				# -p (default)
 VIEW_TYPE=				# -t
-VIEW_USER=				# -u (default)
+VIEW_USER=				# -u
 WIDE_VIEW=				# -w
 
 #
@@ -92,11 +94,13 @@ usage()
 	printf "$optfmt" "-j" "Output JSON formatted data."
 	printf "$optfmt" "-N num" "Perform num samples and exit."
 	printf "$optfmt" "-n" "Do not attempt to map uid/gid to names."
+	printf "$optfmt" "-P pid" "Process ID filter."
+	printf "$optfmt" "-p" "View read/write activity by PID (default)."
 	printf "$optfmt" "-r" "Raw view. Do not format output of bpftrace."
 	printf "$optfmt" "-T type" "Filter on filesystem type."
 	printf "$optfmt" "-t" "View read/write activity by VFS type."
 	printf "$optfmt" "-U user" "User filter (name or id)."
-	printf "$optfmt" "-u" "View read/write activity by user (default)."
+	printf "$optfmt" "-u" "View read/write activity by user."
 	printf "$optfmt" "-v" "Print version and exit."
 	printf "$optfmt" "-w" "Wide view. Maximize width of first column."
 
@@ -253,7 +257,7 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts dG:ghi:JjN:nrsT:tU:uvw flag; do
+while getopts dG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
 	d) DEBUG=1 RAW_VIEW=1 ;;
 	G) FILTER_GROUP="$OPTARG" ;;
@@ -264,6 +268,8 @@ while getopts dG:ghi:JjN:nrsT:tU:uvw flag; do
 	N) [ "$OPTARG" ] || usage "-N option requires an argument" # NOTREACHED
 		NSAMPLES="$OPTARG" ;;
 	n) NO_NAMES=1 ;;
+	P) FILTER_PID="$OPTARG" ;;
+	p) VIEW=PID VIEW_PID=1 ;;
 	r) RAW_VIEW=1 ;;
 	T) FILTER_TYPE="$OPTARG" ;;
 	t) VIEW=TYPE VIEW_TYPE=1 ;;
@@ -286,12 +292,13 @@ shift $(( $OPTIND - 1 ))
 #
 # Silently ignore previous view options unless JSON output
 #
-[ "$VIEW" ] || VIEW=USER VIEW_USER=1
+[ "$VIEW" ] || VIEW=PID VIEW_PID=1
 if [ ! "$OUTPUT_JSON" ]; then
 	case "$VIEW" in
-	GROUP) VIEW_TYPE= VIEW_USER= ;;
-	TYPE) VIEW_GROUP= VIEW_USER= ;;
-	USER) VIEW_GROUP= VIEW_TYPE= ;;
+	GROUP) VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
+	PID) VIEW_GROUP= VIEW_TYPE= VIEW_USER= ;;
+	TYPE) VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
+	USER) VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
 	esac
 fi
 
@@ -359,6 +366,15 @@ case "$FILTER_USER" in
 	FILTER_USER=$( getent passwd $FILTER_UID ) ||
 		die "Unknown user id %d" "$FILTER_UID"
 	FILTER_USER=$( echo "$FILTER_USER" | awk -F: '{print $1}' )
+esac
+
+#
+# Validate `-P pid' option
+#
+case "$FILTER_PID" in
+"") : leave-empty ;;
+0) die "-P pid must be non-zero" ;;
+*[!0-9]*) die "-P pid must be a positive integer" ;;
 esac
 
 #
@@ -581,6 +597,9 @@ fi
 	condition=
 	if [ "$FILTER_GID" ]; then
 		condition="$condition && gid == $FILTER_GID"
+	fi
+	if [ "$FILTER_PID" ]; then
+		condition="$condition && pid == $FILTER_PID"
 	fi
 	if [ "$FILTER_UID" ]; then
 		condition="$condition && uid == $FILTER_UID"
@@ -835,6 +854,9 @@ done )
 ${FILTER_GROUP:+"
 		if (gid != $FILTER_GID) { \$filtered = 1; }
 "}
+${FILTER_PID:+"
+		if (pid != $FILTER_PID) { \$filtered = 1; }
+"}
 ${FILTER_USER:+"
 		if (uid != $FILTER_UID) { \$filtered = 1; }
 "}
@@ -843,6 +865,9 @@ ${FILTER_USER:+"
 		{
 ${VIEW_GROUP:+"
 			@rd_group[\$fstype, gid] = sum(\$count);
+"}
+${VIEW_PID:+"
+			@rd_pid[\$fstype, pid] = sum(\$count);
 "}
 ${VIEW_TYPE:+"
 			@rd_type[\$fstype] = sum(\$count);
@@ -889,6 +914,9 @@ ${VIEW_USER:+"
 ${FILTER_GROUP:+"
 		if (gid != $FILTER_GID) { \$filtered = 1; }
 "}
+${FILTER_PID:+"
+		if (pid != $FILTER_PID) { \$filtered = 1; }
+"}
 ${FILTER_USER:+"
 		if (uid != $FILTER_UID) { \$filtered = 1; }
 "}
@@ -897,6 +925,9 @@ ${FILTER_USER:+"
 		{
 ${VIEW_GROUP:+"
 			@wr_group[\$fstype, gid] = sum(\$count);
+"}
+${VIEW_PID:+"
+			@wr_pid[\$fstype, pid] = sum(\$count);
 "}
 ${VIEW_TYPE:+"
 			@wr_type[\$fstype] = sum(\$count);
@@ -918,6 +949,12 @@ ${VIEW_GROUP:+
 		print(@wr_group);
 		clear(@rd_group);
 		clear(@wr_group);
+}
+${VIEW_PID:+
+		print(@rd_pid);
+		print(@wr_pid);
+		clear(@rd_pid);
+		clear(@wr_pid);
 }
 ${VIEW_TYPE:+
 		print(@rd_type);
@@ -946,6 +983,10 @@ ${VIEW_GROUP:+
 ${VIEW_TYPE:+
 		clear(@rd_type);
 		clear(@wr_type);
+}
+${VIEW_PID:+
+		clear(@rd_pid);
+		clear(@wr_pid);
 }
 ${VIEW_USER:+
 		clear(@rd_user);
@@ -1272,6 +1313,8 @@ EOF
 		delete _keys
 		if (map_view == "group") for (map_key in group_keys)
 			_keys[map_key] = group_keys[map_key]
+		else if (map_view == "pid") for (map_key in pid_keys)
+			_keys[map_key] = pid_keys[map_key]
 		else if (map_view == "type") for (map_key in type_keys)
 			_keys[map_key] = type_keys[map_key]
 		else if (map_view == "user") for (map_key in user_keys)
@@ -1304,6 +1347,9 @@ EOF
 		if (map_view == "group") {
 			group_keys[map_key]
 			if (map_skey != "") group_keys[map_skey]
+		} else if (map_view == "pid") {
+			pid_keys[map_key]
+			if (map_skey != "") pid_keys[map_skey]
 		} else if (map_view == "type") {
 			type_keys[map_key]
 			if (map_skey != "") type_keys[map_skey]

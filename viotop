@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-18 18:33:14 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-18 18:48:46 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.2 $'
+VERSION='$Version: 2.2.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1524,7 +1524,8 @@ EOF
 		cred_read, read_bar, read_bar_pct, read_rate,
 		cred_write, write_bar, write_bar_pct, write_rate)
 	{
-		if (aggregate_view && cred !~ /^\*, /) return
+		if (aggregate_view && map_view != "type" && cred !~ /^\*, /)
+			return
 
 		cred_read = map_key_read[curview, cred]
 		cred_write = map_key_write[curview, cred]

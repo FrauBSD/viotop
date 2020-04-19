@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-18 18:48:46 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-18 18:51:25 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.2.1 $'
+VERSION='$Version: 2.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1522,10 +1522,13 @@ EOF
 
 	function process_cred(curview, cred, read_total, write_total,
 		cred_read, read_bar, read_bar_pct, read_rate,
-		cred_write, write_bar, write_bar_pct, write_rate)
+		cred_write, write_bar, write_bar_pct, write_rate, pch)
 	{
-		if (aggregate_view && map_view != "type" && cred !~ /^\*, /)
-			return
+		pch = "="
+		if (map_view != "type" && cred !~ /^\*, /) {
+			if (aggregate_view) return
+			pch = "-"
+		}
 
 		cred_read = map_key_read[curview, cred]
 		cred_write = map_key_write[curview, cred]
@@ -1537,7 +1540,7 @@ EOF
 			read_bar_pct = 0
 		read_bar_size = bar_size * read_bar_pct
 		read_bar = sprintf("%*s", read_bar_size, "")
-		gsub(/ /, "=", read_bar)
+		gsub(/ /, pch, read_bar)
 		sub(/^./, "<", read_bar)
 
 		write_rate = cred_write / interval
@@ -1547,7 +1550,7 @@ EOF
 			write_bar_pct = 0
 		write_bar_size = bar_size * write_bar_pct
 		write_bar = sprintf("%*s", write_bar_size, "")
-		gsub(/ /, "=", write_bar)
+		gsub(/ /, pch, write_bar)
 		sub(/.$/, ">", write_bar)
 
 		if (!no_names) {

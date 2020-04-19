@@ -1,4 +1,4 @@
-[//]: # ($FrauBSD: neith00/viotop/README.md 2020-04-19 08:43:37 +0200 neith00 $)
+[//]: # ($FrauBSD: neith00/viotop/README.md 2020-04-19 08:47:44 +0200 neith00 $)
 
 # Welcome to [FrauBSD.org/viotop](https://fraubsd.org/viotop)!
 
@@ -11,7 +11,8 @@ Replace `viotop_release` value with current release version.
 ```console
 export viotop_release='2.3' && \
 cd "$(mktemp -d)" && \
-curl -fsSL "https://github.com/FrauBSD/viotop/archive/${viotop_release}.tar.gz" -o viotop_${viotop_release}.tar.gz && \
+curl -fsSL "https://github.com/FrauBSD/viotop/archive/${viotop_release}.tar.gz" \
+-o viotop_${viotop_release}.tar.gz && \
 tar -xvf viotop_${viotop_release}.tar.gz && \
 sudo mv viotop-${viotop_release}/viotop /usr/local/bin
 ```

@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 2.2
+Version: 2.2.1
 Release: 1
 Buildarch: noarch
 
@@ -77,6 +77,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Sat Apr 18 2020 Devin Teske <dteske@fraubsd.org> 2.2.1-1
+- 2b57439 Fix -a to not effect -t
 * Sat Apr 18 2020 Devin Teske <dteske@fraubsd.org> 2.2-1
 - 1d7b3d1 Add -a for viewing aggregate subtotals
 * Sat Apr 18 2020 Devin Teske <dteske@fraubsd.org> 2.1-1

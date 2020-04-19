@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-17 18:33:18 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-18 18:25:04 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.0.1 $'
+VERSION='$Version: 2.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -292,7 +292,7 @@ shift $(( $OPTIND - 1 ))
 #
 # Silently ignore previous view options unless JSON output
 #
-[ "$VIEW" ] || VIEW=PID VIEW_PID=1
+[ "$VIEW$OUTPUT_JSON" ] || VIEW=PID VIEW_PID=1
 if [ ! "$OUTPUT_JSON" ]; then
 	case "$VIEW" in
 	GROUP) VIEW_PID= VIEW_TYPE= VIEW_USER= ;;

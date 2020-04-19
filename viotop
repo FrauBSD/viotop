@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-18 18:25:04 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-18 18:33:14 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.1 $'
+VERSION='$Version: 2.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -25,6 +25,7 @@ FAILURE=1
 #
 # Command-line options
 #
+AGGREGATE_VIEW=				# -a
 DEBUG=					# -d
 FILTER_GROUP=				# -G group
 FILTER_TYPE=				# -T type
@@ -83,6 +84,7 @@ usage()
 
 	printf "Usage: %s [OPTIONS]\n" "$pgm"
 	printf "Options:\n"
+	printf "$optfmt" "-a" "Only show aggregate subtotals."
 	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
 	printf "$optfmt" "-G group" "Group filter (name or id)."
 	printf "$optfmt" "-g" "View read/write activity by group."
@@ -257,8 +259,9 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts dG:ghi:JjN:nP:prsT:tU:uvw flag; do
+while getopts adG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
+	a) AGGREGATE_VIEW=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
 	G) FILTER_GROUP="$OPTARG" ;;
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
@@ -1147,6 +1150,7 @@ EOF
 	echo EXIT:$? >&9 # Send status to post-processor
 
 } | awk -v cols=$cols \
+	-v aggregate_view=${AGGREGATE_VIEW:-0} \
 	-v debug=${DEBUG:-0} \
 	-v filter_type=${FILTER_TYPE:+1} \
 	-v interval=$INTERVAL_SECONDS \
@@ -1520,6 +1524,8 @@ EOF
 		cred_read, read_bar, read_bar_pct, read_rate,
 		cred_write, write_bar, write_bar_pct, write_rate)
 	{
+		if (aggregate_view && cred !~ /^\*, /) return
+
 		cred_read = map_key_read[curview, cred]
 		cred_write = map_key_write[curview, cred]
 

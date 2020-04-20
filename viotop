@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-18 18:51:25 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-19 17:48:34 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3 $'
+VERSION='$Version: 2.3.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -291,6 +291,12 @@ shift $(( $OPTIND - 1 ))
 # Process command-line arguments
 #
 [ $# -eq 0 ] || usage "Too many arguments" # NOTREACHED
+
+#
+# Check if both `-a' and `-T type' were given
+#
+! [ "$AGGREGATE_VIEW" -a "$FILTER_TYPE" ] ||
+	die "-T type cannot be combined with -a"
 
 #
 # Silently ignore previous view options unless JSON output

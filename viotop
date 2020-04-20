@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-19 18:24:58 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-19 18:53:28 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.4 $'
+VERSION='$Version: 2.4.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -570,6 +570,10 @@ fi
 			}
 			if (!matched) next
 
+			#
+			# FILTERS
+			#
+
 			# user filter
 			if (filter_user != "" && user != filter_user) {
 				next
@@ -606,6 +610,7 @@ fi
 
 	#
 	# Generate conditions
+	# FILTERS
 	#
 	condition=
 	if [ "$FILTER_GID" ]; then
@@ -864,6 +869,7 @@ done )
 
 		\$filtered = 0;
 
+		// FILTERS
 ${FILTER_GROUP:+"
 		if (gid != $FILTER_GID) { \$filtered = 1; }
 "}
@@ -928,6 +934,7 @@ ${VIEW_USER:+"
 
 		\$filtered = 0;
 
+		// FILTERS
 ${FILTER_GROUP:+"
 		if (gid != $FILTER_GID) { \$filtered = 1; }
 "}

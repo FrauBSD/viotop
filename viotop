@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-19 18:21:23 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-19 18:24:58 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3.4 $'
+VERSION='$Version: 2.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -36,6 +36,7 @@ NO_NAMES=				# -n
 NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
 RAW_VIEW=				# -r
+VIEW_COMM=				# -c
 VIEW_GROUP=				# -g
 VIEW_PID=				# -p (default)
 VIEW_TYPE=				# -t
@@ -85,6 +86,7 @@ usage()
 	printf "Usage: %s [OPTIONS]\n" "$pgm"
 	printf "Options:\n"
 	printf "$optfmt" "-a" "Only show aggregate subtotals."
+	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
 	printf "$optfmt" "-G group" "Group filter (name or id)."
 	printf "$optfmt" "-g" "View read/write activity by group."
@@ -259,9 +261,10 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts adG:ghi:JjN:nP:prsT:tU:uvw flag; do
+while getopts acdG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
 	a) AGGREGATE_VIEW=1 ;;
+	c) VIEW=COMM VIEW_COMM=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
 	G) FILTER_GROUP="$OPTARG" ;;
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
@@ -304,10 +307,11 @@ shift $(( $OPTIND - 1 ))
 [ "$VIEW$OUTPUT_JSON" ] || VIEW=PID VIEW_PID=1
 if [ ! "$OUTPUT_JSON" ]; then
 	case "$VIEW" in # VIEWS
-	GROUP) VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
-	PID) VIEW_GROUP= VIEW_TYPE= VIEW_USER= ;;
-	TYPE) VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
-	USER) VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
+	COMM) VIEW_GROUP= VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
+	GROUP) VIEW_COMM= VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
+	PID) VIEW_COMM= VIEW_GROUP= VIEW_TYPE= VIEW_USER= ;;
+	TYPE) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
+	USER) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
 	esac
 fi
 
@@ -873,6 +877,9 @@ ${FILTER_USER:+"
 		if (\$ret > 0 && \$filtered == 0)
 		{
 			// VIEWS
+${VIEW_COMM:+"
+			@rd_comm[\$fstype, comm] = sum(\$count);
+"}
 ${VIEW_GROUP:+"
 			@rd_group[\$fstype, gid] = sum(\$count);
 "}
@@ -934,6 +941,9 @@ ${FILTER_USER:+"
 		if (\$ret > 0 && \$filtered == 0)
 		{
 			// VIEWS
+${VIEW_COMM:+"
+			@wr_comm[\$fstype, comm] = sum(\$count);
+"}
 ${VIEW_GROUP:+"
 			@wr_group[\$fstype, gid] = sum(\$count);
 "}
@@ -956,6 +966,12 @@ ${VIEW_USER:+"
 		printf("===\n");
 
 		// VIEWS
+${VIEW_COMM:+
+		print(@rd_comm);
+		print(@wr_comm);
+		clear(@rd_comm);
+		clear(@wr_comm);
+}
 ${VIEW_GROUP:+
 		print(@rd_group);
 		print(@wr_group);
@@ -989,6 +1005,10 @@ ${VIEW_USER:+
 	END
 	{
 		// VIEWS
+${VIEW_COMM:+
+		clear(@rd_comm);
+		clear(@wr_comm);
+}
 ${VIEW_GROUP:+
 		clear(@rd_group);
 		clear(@wr_group);
@@ -1279,6 +1299,7 @@ EOF
 	function clear_data()
 	{
 		# VIEWS
+		delete comm_keys
 		delete group_keys
 		delete pid_keys
 		delete type_keys
@@ -1328,7 +1349,9 @@ EOF
 	{
 		delete _keys
 		# VIEWS
-		if (map_view == "group") for (map_key in group_keys)
+		if (map_view == "comm") for (map_key in comm_keys)
+			_keys[map_key] = comm_keys[map_key]
+		else if (map_view == "group") for (map_key in group_keys)
 			_keys[map_key] = group_keys[map_key]
 		else if (map_view == "pid") for (map_key in pid_keys)
 			_keys[map_key] = pid_keys[map_key]
@@ -1363,7 +1386,10 @@ EOF
 		}
 
 		# VIEWS
-		if (map_view == "group") {
+		if (map_view == "comm") {
+			comm_keys[map_key]
+			if (map_skey != "") comm_keys[map_skey]
+		} else if (map_view == "group") {
 			group_keys[map_key]
 			if (map_skey != "") group_keys[map_skey]
 		} else if (map_view == "pid") {

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-19 18:53:28 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-19 18:58:18 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.4.1 $'
+VERSION='$Version: 2.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -46,6 +46,7 @@ WIDE_VIEW=				# -w
 #
 # Miscellaneous
 #
+FILTER_COMM=
 FILTER_GID=
 FILTER_UID=
 INTERVAL_PROBE= # Calculated
@@ -83,7 +84,7 @@ usage()
 		printf "%s: $fmt\n" "$pgm" "$@"
 	fi
 
-	printf "Usage: %s [OPTIONS]\n" "$pgm"
+	printf "Usage: %s [OPTIONS] [--] [comm]\n" "$pgm"
 	printf "Options:\n"
 	printf "$optfmt" "-a" "Only show aggregate subtotals."
 	printf "$optfmt" "-c" "View read/write activity by command name."
@@ -293,7 +294,8 @@ shift $(( $OPTIND - 1 ))
 #
 # Process command-line arguments
 #
-[ $# -eq 0 ] || usage "Too many arguments" # NOTREACHED
+[ $# -le 1 ] || usage "Too many arguments" # NOTREACHED
+FILTER_COMM="$1"
 
 #
 # Check if both `-a' and `-T type' were given
@@ -426,6 +428,7 @@ fi
 		     "(this may take a while)..."
 		OPEN_FDS=$( run_lsof | awk \
 			-v debug=${DEBUG:-0} \
+			-v filter_comm="$FILTER_COMM" \
 			-v filter_gid="$FILTER_GID" \
 			-v filter_type="$FILTER_TYPE" \
 			-v filter_user="$FILTER_USER" \
@@ -574,6 +577,11 @@ fi
 			# FILTERS
 			#
 
+			# comm filter
+			if (filter_comm != "" && cmd != filter_comm) {
+				next
+			}
+
 			# user filter
 			if (filter_user != "" && user != filter_user) {
 				next
@@ -613,6 +621,10 @@ fi
 	# FILTERS
 	#
 	condition=
+	if [ "$FILTER_COMM" ]; then
+		FILTER_COMM="\"$FILTER_COMM\""
+		condition="$condition && comm == $FILTER_COMM"
+	fi
 	if [ "$FILTER_GID" ]; then
 		condition="$condition && gid == $FILTER_GID"
 	fi
@@ -870,6 +882,9 @@ done )
 		\$filtered = 0;
 
 		// FILTERS
+${FILTER_COMM:+"
+		if (comm != $FILTER_COMM) { \$filtered = 1; }
+"}
 ${FILTER_GROUP:+"
 		if (gid != $FILTER_GID) { \$filtered = 1; }
 "}
@@ -935,6 +950,9 @@ ${VIEW_USER:+"
 		\$filtered = 0;
 
 		// FILTERS
+${FILTER_COMM:+"
+		if (comm != $FILTER_COMM) { \$filtered = 1; }
+"}
 ${FILTER_GROUP:+"
 		if (gid != $FILTER_GID) { \$filtered = 1; }
 "}

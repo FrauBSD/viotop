@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-19 20:05:13 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-20 16:30:19 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.1 $'
+VERSION='$Version: 3.1.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1248,6 +1248,10 @@ EOF
 		cmd | getline bpid
 		close(cmd)
 
+		#
+		# Columns
+		# NB: vsz = size of VIEW column ("view size")
+		#
 		if (wide_view) {
 			if (view == "TYPE") {
 				min = 21
@@ -1257,14 +1261,17 @@ EOF
 			} else {
 				min = cols <= 80 ? 11 : 21
 				vsz = cols - 8 - 36 - 5 - min # Maximize VIEW
-					#  8 = %-8s column
+					#  8 = %-8s VFS column
 					# 36 = 3 x %12s columns
 					#  5 = number of spaces
 			}
 		} else {
-			vsz = 15 # Maximize bar
+			vsz = 15 # Maximize bar by restricting VIEW column
 		}
 
+		#
+		# Progress bar
+		#
 		if (view == "TYPE") {
 			fmt = "%-"vsz"s %12s %12s %*s|%-*s %-12s\n"
 			bar_size = (cols - vsz - 36 - 4 - 1) / 2
@@ -1276,7 +1283,7 @@ EOF
 			fmt = "%-8s %-"vsz"s %12s %12s %*s|%-*s %-12s\n"
 			bar_size = (cols - 8 - vsz - 36 - 5 - 1) / 2
 			fmtsz = 8 + vsz + 36 + 5 + int(bar_size) * 2 + 1
-				#  8 = %-8s column
+				#  8 = %-8s VFS column
 				# 36 = 3 x %12s columns
 				#  5 = number of spaces
 				#  1 = "|" between bars

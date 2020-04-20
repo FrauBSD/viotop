@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-20 16:30:19 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-20 16:47:39 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.1.1 $'
+VERSION='$Version: 3.1.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1252,18 +1252,21 @@ EOF
 		# Columns
 		# NB: vsz = size of VIEW column ("view size")
 		#
+		show_vfs_column = 1
+		if (view == "TYPE")
+			show_vfs_column = 0
 		if (wide_view) {
-			if (view == "TYPE") {
-				min = 21
-				vsz = cols - 36 - 4 - min # Maximize VIEW
-					# 36 = 3 x %12s columns
-					#  4 = number of spaces
-			} else {
+			if (show_vfs_column) {
 				min = cols <= 80 ? 11 : 21
 				vsz = cols - 8 - 36 - 5 - min # Maximize VIEW
 					#  8 = %-8s VFS column
 					# 36 = 3 x %12s columns
 					#  5 = number of spaces
+			} else {
+				min = 21
+				vsz = cols - 36 - 4 - min # Maximize VIEW
+					# 36 = 3 x %12s columns
+					#  4 = number of spaces
 			}
 		} else {
 			vsz = 15 # Maximize bar by restricting VIEW column
@@ -1272,20 +1275,20 @@ EOF
 		#
 		# Progress bar
 		#
-		if (view == "TYPE") {
-			fmt = "%-"vsz"s %12s %12s %*s|%-*s %-12s\n"
-			bar_size = (cols - vsz - 36 - 4 - 1) / 2
-			fmtsz = vsz + 36 + 4 + int(bar_size) * 2 + 1
-				# 36 = 3 x %12s columns
-				#  4 = number of spaces
-				#  1 = "|" between bars
-		} else {
+		if (show_vfs_column) {
 			fmt = "%-8s %-"vsz"s %12s %12s %*s|%-*s %-12s\n"
 			bar_size = (cols - 8 - vsz - 36 - 5 - 1) / 2
 			fmtsz = 8 + vsz + 36 + 5 + int(bar_size) * 2 + 1
 				#  8 = %-8s VFS column
 				# 36 = 3 x %12s columns
 				#  5 = number of spaces
+				#  1 = "|" between bars
+		} else {
+			fmt = "%-"vsz"s %12s %12s %*s|%-*s %-12s\n"
+			bar_size = (cols - vsz - 36 - 4 - 1) / 2
+			fmtsz = vsz + 36 + 4 + int(bar_size) * 2 + 1
+				# 36 = 3 x %12s columns
+				#  4 = number of spaces
 				#  1 = "|" between bars
 		}
 
@@ -1371,13 +1374,13 @@ EOF
 				#  9 = "Interval:"
 				#  2 = number of spaces
 				# 31 = %31s = date
-		if (view == "TYPE") {
+		if (show_vfs_column) {
 			buffer_add(sprintf("\033[7;1m" fmt "\033[27;22m",
-				"VFS", "TOTAL", "READ(IN)", bar_size, "",
+				"VFS", view, "TOTAL", "READ(IN)", bar_size, "",
 				bar_size, "", "WRITE(OUT)"))
 		} else {
 			buffer_add(sprintf("\033[7;1m" fmt "\033[27;22m",
-				"VFS", view, "TOTAL", "READ(IN)", bar_size, "",
+				"VFS", "TOTAL", "READ(IN)", bar_size, "",
 				bar_size, "", "WRITE(OUT)"))
 		}
 	}
@@ -1557,14 +1560,14 @@ EOF
 		} else {
 			read_bar = ""
 			write_bar = ""
-			if (curview == "type") {
-				buffer_add(sprintf(fmt, "total",
+			if (show_vfs_column) {
+				buffer_add(sprintf(fmt, "*", "total",
 					humanize(write_rate + read_rate),
 					humanize(read_rate), bar_size,
 					read_bar, bar_size, write_bar,
 					humanize(write_rate)))
 			} else {
-				buffer_add(sprintf(fmt, "*", "total",
+				buffer_add(sprintf(fmt, "total",
 					humanize(write_rate + read_rate),
 					humanize(read_rate), bar_size,
 					read_bar, bar_size, write_bar,
@@ -1680,16 +1683,18 @@ EOF
 				"write_rate", write_rate)
 			buffer_add("{" json_out "}\n")
 		} else {
-			if (curview == "type") {
-				buffer_add(sprintf(fmt, cred,
+			if (curview != "type") {
+				fstype = cred
+				sub(/, .*/, "", fstype)
+				sub(/^[^,]*, /, "", cred)
+			}
+			if (show_vfs_column) {
+				buffer_add(sprintf(fmt, fstype, cred,
 					humanize(rw_rate), humanize(read_rate),
 					bar_size, read_bar, bar_size,
 					write_bar, humanize(write_rate)))
 			} else {
-				fstype = cred
-				sub(/, .*/, "", fstype)
-				sub(/^[^,]*, /, "", cred)
-				buffer_add(sprintf(fmt, fstype, cred,
+				buffer_add(sprintf(fmt, cred,
 					humanize(rw_rate), humanize(read_rate),
 					bar_size, read_bar, bar_size,
 					write_bar, humanize(write_rate)))

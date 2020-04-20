@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-20 16:47:39 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-20 16:50:41 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.1.2 $'
+VERSION='$Version: 3.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1212,6 +1212,7 @@ EOF
 
 } | awk -v cols=$cols \
 	-v debug=${DEBUG:-0} \
+	-v filter_type=${FILTER_TYPE:+1} \
 	-v interval=$INTERVAL_SECONDS \
 	-v no_names=${NO_NAMES:-0} \
 	-v nsamples=${NSAMPLES:-0} \
@@ -1253,7 +1254,7 @@ EOF
 		# NB: vsz = size of VIEW column ("view size")
 		#
 		show_vfs_column = 1
-		if (view == "TYPE")
+		if (view == "TYPE" || filter_type || view_aggregates)
 			show_vfs_column = 0
 		if (wide_view) {
 			if (show_vfs_column) {
@@ -1380,8 +1381,9 @@ EOF
 				bar_size, "", "WRITE(OUT)"))
 		} else {
 			buffer_add(sprintf("\033[7;1m" fmt "\033[27;22m",
-				"VFS", "TOTAL", "READ(IN)", bar_size, "",
-				bar_size, "", "WRITE(OUT)"))
+				view == "TYPE" ? "VFS" : view, "TOTAL",
+				"READ(IN)", bar_size, "", bar_size, "",
+				"WRITE(OUT)"))
 		}
 	}
 

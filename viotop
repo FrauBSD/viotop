@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-19 20:03:13 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-19 20:05:13 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.0.1 $'
+VERSION='$Version: 3.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -36,6 +36,7 @@ NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
 RAW_VIEW=				# -r
 SHOW_AGGREGATES=			# -a
+VIEW_AGGREGATES=			# -A
 VIEW_COMM=				# -c
 VIEW_GROUP=				# -g
 VIEW_PID=				# -p (default)
@@ -87,6 +88,7 @@ usage()
 	printf "Usage: %s [OPTIONS] [--] [comm]\n" "$pgm"
 	printf "Options:\n"
 	printf "$optfmt" "-a" "Show aggregate subtotals."
+	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
 	printf "$optfmt" "-G group" "Group filter (name or id)."
@@ -262,8 +264,9 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts acdG:ghi:JjN:nP:prsT:tU:uvw flag; do
+while getopts AacdG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
+	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
 	c) VIEW=COMM VIEW_COMM=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
@@ -1217,6 +1220,7 @@ EOF
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
 	-v view="$VIEW" \
+	-v view_aggregates=${VIEW_AGGREGATES:-0} \
 	-v wide_view=${WIDE_VIEW:-0} \
 	'####################################### BEGIN
 
@@ -1592,6 +1596,7 @@ EOF
 	{
 		pch = "="
 		if (show_aggregates && cred !~ /^\*, /) {
+			if (view_aggregates) return
 			pch = "-"
 		}
 

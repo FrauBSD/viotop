@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-19 17:48:34 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-19 18:16:30 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 2.3.1 $'
+VERSION='$Version: 2.3.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -303,7 +303,7 @@ shift $(( $OPTIND - 1 ))
 #
 [ "$VIEW$OUTPUT_JSON" ] || VIEW=PID VIEW_PID=1
 if [ ! "$OUTPUT_JSON" ]; then
-	case "$VIEW" in
+	case "$VIEW" in # VIEWS
 	GROUP) VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
 	PID) VIEW_GROUP= VIEW_TYPE= VIEW_USER= ;;
 	TYPE) VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
@@ -872,6 +872,7 @@ ${FILTER_USER:+"
 
 		if (\$ret > 0 && \$filtered == 0)
 		{
+			// VIEWS
 ${VIEW_GROUP:+"
 			@rd_group[\$fstype, gid] = sum(\$count);
 "}
@@ -932,6 +933,7 @@ ${FILTER_USER:+"
 
 		if (\$ret > 0 && \$filtered == 0)
 		{
+			// VIEWS
 ${VIEW_GROUP:+"
 			@wr_group[\$fstype, gid] = sum(\$count);
 "}
@@ -953,6 +955,7 @@ ${VIEW_USER:+"
 	{
 		printf("===\n");
 
+		// VIEWS
 ${VIEW_GROUP:+
 		print(@rd_group);
 		print(@wr_group);
@@ -985,6 +988,7 @@ ${VIEW_USER:+
 
 	END
 	{
+		// VIEWS
 ${VIEW_GROUP:+
 		clear(@rd_group);
 		clear(@wr_group);
@@ -1001,6 +1005,7 @@ ${VIEW_USER:+
 		clear(@rd_user);
 		clear(@wr_user);
 }
+
 		clear(@dup_fd);
 		clear(@read_count);
 		clear(@read_exit);
@@ -1273,6 +1278,7 @@ EOF
 
 	function clear_data()
 	{
+		# VIEWS
 		delete file_keys
 		delete group_keys
 		delete pid_keys
@@ -1322,6 +1328,7 @@ EOF
 	function load_keys(map_view,        map_key)
 	{
 		delete _keys
+		# VIEWS
 		if (map_view == "group") for (map_key in group_keys)
 			_keys[map_key] = group_keys[map_key]
 		else if (map_view == "pid") for (map_key in pid_keys)
@@ -1355,6 +1362,8 @@ EOF
 			map_views[map_view]
 			view_list[++nviews] = map_view
 		}
+
+		# VIEWS
 		if (map_view == "group") {
 			group_keys[map_key]
 			if (map_skey != "") group_keys[map_skey]

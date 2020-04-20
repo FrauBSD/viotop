@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 2.4.1
+Version: 2.5
 Release: 1
 Buildarch: noarch
 
@@ -77,6 +77,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Sun Apr 19 2020 Devin Teske <dteske@fraubsd.org> 2.5-1
+- 9774160 Make first argument comm filter if given
 * Sun Apr 19 2020 Devin Teske <dteske@fraubsd.org> 2.4.1-1
 - 99c6e8d Add comments where new filters should be added
 * Sun Apr 19 2020 Devin Teske <dteske@fraubsd.org> 2.4-1

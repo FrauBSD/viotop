@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 19:12:04 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 19:19:07 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.5 $'
+VERSION='$Version: 3.6 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -305,7 +305,7 @@ FILTER_COMM="$1"
 #
 # Silently ignore previous view options unless JSON output
 #
-[ "$VIEW$OUTPUT_JSON" ] || VIEW=PID VIEW_PID=1
+[ "$VIEW" ] || VIEW=PID VIEW_PID=1
 if [ ! "$OUTPUT_JSON" ]; then
 	case "$VIEW" in # VIEWS
 	COMM) VIEW_GROUP= VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
@@ -314,14 +314,6 @@ if [ ! "$OUTPUT_JSON" ]; then
 	TYPE) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
 	USER) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
 	esac
-fi
-
-#
-# Check if both `-a' and `-t'/`-T type' were given
-#
-if [ "$SHOW_AGGREGATES" ]; then
-	[ ! "$VIEW_TYPE" ] || die "-a cannot be combined with -t"
-	[ ! "$FILTER_TYPE" ] || die "-a cannot be combined with -T type"
 fi
 
 #
@@ -1644,10 +1636,12 @@ EOF
 		r = 1
 		n = _asort(_keys, _keys_sorted)
 		table_rows = output_json ? n : rows - 4
-		for (i = n; i >= 1 && r++ <= table_rows; i--) {
+		for (i = n; i >= 1 && r <= table_rows; i--) {
+			debug2("r=[%d] table_rows=[%d]", r, table_rows)
 			cred = _keys_sorted[i]
 			sub(/^ *[^ ]+ +/, "", cred) # Undecorate
-			process_cred(curview, cred, read_total, write_total)
+			r += process_cred(curview, cred,
+				read_total, write_total)
 		}
 		if (i > 0) buffer_add(sprintf("(%d more) ... ", i))
 	}
@@ -1657,9 +1651,19 @@ EOF
 		cred_write, write_bar, write_bar_pct, write_rate, pch)
 	{
 		pch = "="
-		if (show_aggregates && cred !~ /^\*, /) {
-			if (view_aggregates) return
-			pch = "-"
+		if (show_aggregates) {
+			if (curview == "type") {
+				if (cred != "*") {
+					if (view_aggregates) return 0
+				} else {
+					if (output_json) return 0
+				}
+			} else {
+				if (cred !~ /^\*, /) {
+					if (view_aggregates) return 0
+					pch = "-"
+				}
+			}
 		}
 		debug1("-> process_cred(curview = %s, ...)", curview)
 		debug1("+ cred=[%s]", cred)

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 19:19:07 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 19:22:48 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.6 $'
+VERSION='$Version: 3.6.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1648,7 +1648,8 @@ EOF
 
 	function process_cred(curview, cred, read_total, write_total,
 		cred_read, read_bar, read_bar_pct, read_rate,
-		cred_write, write_bar, write_bar_pct, write_rate, pch)
+		cred_write, write_bar, write_bar_pct, write_rate,
+		_cred, key, pch)
 	{
 		pch = "="
 		if (show_aggregates) {
@@ -1692,22 +1693,13 @@ EOF
 		sub(/.$/, ">", write_bar)
 
 		if (!no_names) {
+			_cred = cred
 			if (curview == "group") {
 				cred = gid2name(cred)
 			} else if (curview == "user") {
 				cred = uid2name(cred)
 			}
-			if (!output_json) {
-				if (curview == "type") {
-					len = length(cred)
-				} else {
-					match(cred, /, .*$/)
-					len = RLENGTH - 2
-				}
-				if (len > vsz) {
-					cred = substr(cred, 1, vsz)
-				}
-			}
+			if (cred != _cred) debug1("+ cred=[%s]", cred)
 		}
 
 		rw_rate = write_rate + read_rate

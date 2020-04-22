@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 18:42:21 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 18:45:50 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.3 $'
+VERSION='$Version: 3.3.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -416,7 +416,6 @@ fi
 
 #
 # Run script
-# NB: M-x package-install [RET] dtrace-script-mode [RET]
 #
 {
 	exec 3<&1
@@ -646,6 +645,7 @@ fi
 
 	#
 	# Start background bpftrace
+	# NB: M-x package-install [RET] dtrace-script-mode [RET]
 	#
 	run_bpftrace <<EOF &
 	/* -*- mode: dtrace-script; tab-width: 4 -*- ;; Emacs
@@ -1381,7 +1381,7 @@ EOF
 			strftime("%c", systime())))
 				#  9 = "Interval:"
 				#  2 = number of spaces
-				# 31 = %31s = date
+				# 31 = %31s date
 		if (show_vfs_column) {
 			buffer_add(sprintf("\033[7;1m" fmt "\033[27;22m",
 				"VFS", view, "TOTAL", "READ(IN)", bar_size, "",

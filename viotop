@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 18:48:49 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 18:51:57 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.3.2 $'
+VERSION='$Version: 3.3.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1338,8 +1338,8 @@ EOF
 			prefix = substr(gid, 1, RSTART)
 			gid = substr(gid, RSTART + 1)
 		}
-		if (uid in uid2name_cache)
-			return prefix uid2name_cache[uid]
+		if (gid in gid2name_cache)
+			return prefix gid2name_cache[gid]
 		(cmd = sprintf("getent group %d", gid)) | getline entry
 		close(cmd)
 		return prefix (split(entry, fields, /:/) < 3 ? gid : fields[1])

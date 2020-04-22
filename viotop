@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 18:45:50 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 18:48:49 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.3.1 $'
+VERSION='$Version: 3.3.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -648,6 +648,7 @@ fi
 	# NB: M-x package-install [RET] dtrace-script-mode [RET]
 	#
 	run_bpftrace <<EOF &
+	${DEBUG:+#!/usr/bin/bpftrace}
 	/* -*- mode: dtrace-script; tab-width: 4 -*- ;; Emacs
 	 * vi: set ft=dtrace noet ts=4 sw=4 :: Vi/ViM
 	 */

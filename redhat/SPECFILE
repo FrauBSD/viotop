@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 3.6.2
+Version: 3.7
 Release: 1
 Buildarch: noarch
 
@@ -77,6 +77,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Tue Apr 21 2020 Devin Teske <dteske@fraubsd.org> 3.7-1
+- e23978d Make -J imply -a
 * Tue Apr 21 2020 Devin Teske <dteske@fraubsd.org> 3.6.2-1
 - 115ecf5 Fix -J and row calculations
 * Tue Apr 21 2020 Devin Teske <dteske@fraubsd.org> 3.6.1-1

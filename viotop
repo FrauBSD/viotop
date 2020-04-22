@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 18:57:58 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 19:12:04 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.4 $'
+VERSION='$Version: 3.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1256,48 +1256,74 @@ EOF
 		close(cmd)
 
 		#
-		# Columns
+		# Calculate columns and column widths
+		#
 		# NB: vsz = size of VIEW column ("view size")
+		# NB: bar_size = size of bar column (if shown)
+		#
+		# If given -w (wide view) make bar_size fixed-width and
+		# vsz variable-width.
+		#
+		# Without -w, make vsz fixed-width and bar_size variable.
 		#
 		show_vfs_column = 1
 		if (view == "TYPE" || filter_type || view_aggregates)
 			show_vfs_column = 0
+		vsz_fixed = 15 # VIEW column
+		bar_size_fixed = cols <= 80 ? 11 : 21
 		if (wide_view) {
+			# Fixed-width
+			bar_size = bar_size_fixed
+
+			# Variable-width (%-*s)
+			vsz = cols
 			if (show_vfs_column) {
-				min = cols <= 80 ? 11 : 21
-				vsz = cols - 8 - 36 - 5 - min # Maximize VIEW
-					#  8 = %-8s VFS column
-					# 36 = 3 x %12s columns
-					#  5 = number of spaces
-			} else {
-				min = 21
-				vsz = cols - 36 - 4 - min # Maximize VIEW
-					# 36 = 3 x %12s columns
-					#  4 = number of spaces
+				vsz -= 8 + 1 # %-8s VFS + space
 			}
+			vsz -= 0 + 1 # %-*s VIEW + space
+			vsz -= 12 + 1 # %12s TOTAL + space
+			vsz -= 12 + 1 # %12s READ(IN) + space
+			vsz -= bar_size + 1 # bar + space
+			vsz -= 12 # %-12s WRITE(OUT)
 		} else {
-			vsz = 15 # Maximize bar by restricting VIEW column
+			# Fixed-width
+			vsz = vsz_fixed
+
+			# Variable-width (%-*s)
+			bar_size = cols
+			if (show_vfs_column) {
+				bar_size -= 8 + 1 # %-8s VFS + space
+			}
+			bar_size -= vsz + 1 # %-15s VIEW + space
+			bar_size -= 12 + 1 # %12s TOTAL + space
+			bar_size -= 12 + 1 # %12s READ(IN) + space
+			bar_size -= 0 + 1 # variable-width bar + space
+			bar_size -= 12 # %-12s WRITE(OUT)
 		}
 
 		#
-		# Progress bar
+		# Calculate format and line width
 		#
+		fmt = ""
+		fmtsz = 0
 		if (show_vfs_column) {
-			fmt = "%-8s %-"vsz"s %12s %12s %*s|%-*s %-12s\n"
-			bar_size = (cols - 8 - vsz - 36 - 5 - 1) / 2
-			fmtsz = 8 + vsz + 36 + 5 + int(bar_size) * 2 + 1
-				#  8 = %-8s VFS column
-				# 36 = 3 x %12s columns
-				#  5 = number of spaces
-				#  1 = "|" between bars
-		} else {
-			fmt = "%-"vsz"s %12s %12s %*s|%-*s %-12s\n"
-			bar_size = (cols - vsz - 36 - 4 - 1) / 2
-			fmtsz = vsz + 36 + 4 + int(bar_size) * 2 + 1
-				# 36 = 3 x %12s columns
-				#  4 = number of spaces
-				#  1 = "|" between bars
+			fmt = fmt " %-8s" # VFS column
+			fmtsz += 1 + 8
 		}
+		fmt = fmt " %-" vsz "s" # VIEW column
+		fmtsz += 1 + vsz
+		fmt = fmt " %12s" # TOTAL column
+		fmt = fmt " %12s" # READ(IN) column
+		fmtsz += 1 + 12 + 1 + 12
+		full_bar = bar_size
+		bar_size = int(bar_size / 2)
+		if (bar_size * 2 == full_bar) bar_size--
+		fmt = fmt " %*s|%-*s"
+		fmtsz += 1 + bar_size + 1 + bar_size
+		fmt = fmt " %-12s" # WRITE(OUT) column
+		fmtsz += 1 + 12
+		fmt = substr(fmt, 2) "\n" # Trim leading space, append \n
+		fmtsz -= 1
 
 		if (!raw_view) {
 			clear_buffer()

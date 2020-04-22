@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 19:27:05 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 19:30:05 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.6.2 $'
+VERSION='$Version: 3.7 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -98,7 +98,7 @@ usage()
 	printf "$optfmt" "-h" "Print usage statement and exit."
 	printf "$optfmt" "-i sec" \
 		"Set interval seconds. Default \`$DEFAULT_INTERVAL'."
-	printf "$optfmt" "-J" "Output most JSON data. Same as \`-jgtu'."
+	printf "$optfmt" "-J" "Output most JSON data. Same as \`-ajgtu'."
 	printf "$optfmt" "-j" "Output JSON formatted data."
 	printf "$optfmt" "-N num" "Perform num samples and exit."
 	printf "$optfmt" "-n" "Do not attempt to map uid/gid to names."
@@ -275,7 +275,8 @@ while getopts AacDdG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	G) FILTER_GROUP="$OPTARG" ;;
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
 	i) INTERVAL="$OPTARG" ;;
-	J) VIEW=JSON OUTPUT_JSON=1 VIEW_GROUP=1 VIEW_TYPE=1 VIEW_USER=1 ;;
+	J) VIEW=JSON OUTPUT_JSON=1 SHOW_AGGREGATES=1 \
+		VIEW_GROUP=1 VIEW_TYPE=1 VIEW_USER=1 ;;
 	j) OUTPUT_JSON=1 ;;
 	N) [ "$OPTARG" ] || usage "-N option requires an argument" # NOTREACHED
 		NSAMPLES="$OPTARG" ;;

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 18:51:57 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 18:57:58 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.3.3 $'
+VERSION='$Version: 3.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1317,32 +1317,48 @@ EOF
 	function buffer_add(text) { BUFFER = BUFFER text }
 	function print_buffer() { printf "%s", BUFFER }
 
-	function uid2name(uid,        prefix, cmd, entry, fields)
+	function uid2name(uid,        cmd, id, idf, name, n, k, idx, i, ret)
 	{
-		prefix = ""
-		if (match(uid, /[^0-9][0-9]+$/)) {
-			prefix = substr(uid, 1, RSTART)
-			uid = substr(uid, RSTART + 1)
+		n = split(uid, k, /, /)
+		uid = k[idx = 2]
+		if (uid in uid2name_cache) {
+			name = uid2name_cache[uid]
+		} else {
+			(cmd = sprintf("getent passwd %d", uid)) | getline id
+			close(cmd)
+			name = split(id, idf, /:/) < 3 ? uid : idf[1]
+			if (name == "") name = uid
+			uid2name_cache[uid] = name
 		}
-		if (uid in uid2name_cache)
-			return prefix uid2name_cache[uid]
-		(cmd = sprintf("getent passwd %d", uid)) | getline entry
-		close(cmd)
-		return prefix (split(entry, fields, /:/) < 3 ? uid : fields[1])
+		if (!output_json && length(name) > vsz)
+			name = substr(name, 1, vsz)
+		ret = ""
+		k[idx] = name
+		for (i = 1; i <= n; i++)
+			ret = ret ", " k[i]
+		return substr(ret, 3) # Trim leading ", "
 	}
 
-	function gid2name(gid,        cmd, entry, fields)
+	function gid2name(gid,        cmd, id, idf, name, n, k, idx, i, ret)
 	{
-		prefix = ""
-		if (match(gid, /[^0-9][0-9]+$/)) {
-			prefix = substr(gid, 1, RSTART)
-			gid = substr(gid, RSTART + 1)
+		n = split(gid, k, /, /)
+		gid = k[idx = 2]
+		if (gid in gid2name_cache) {
+			name = gid2name_cache[gid]
+		} else {
+			(cmd = sprintf("getent group %d", gid)) | getline id
+			close(cmd)
+			name = split(id, idf, /:/) < 3 ? gid : idf[1]
+			if (name == "") name = gid
+			gid2name_cache[gid] = name
 		}
-		if (gid in gid2name_cache)
-			return prefix gid2name_cache[gid]
-		(cmd = sprintf("getent group %d", gid)) | getline entry
-		close(cmd)
-		return prefix (split(entry, fields, /:/) < 3 ? gid : fields[1])
+		if (!output_json && length(name) > vsz)
+			name = substr(name, 1, vsz)
+		ret = ""
+		k[idx] = name
+		for (i = 1; i <= n; i++)
+			ret = ret ", " k[i]
+		return substr(ret, 3) # Trim leading ", "
 	}
 
 	function clear_data()

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 19:30:05 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 19:32:56 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.7 $'
+VERSION='$Version: 4.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -906,7 +906,7 @@ ${VIEW_GROUP:+"
 			@rd_group[\$fstype, gid] = sum(\$count);
 "}
 ${VIEW_PID:+"
-			@rd_pid[\$fstype, pid] = sum(\$count);
+			@rd_pid[\$fstype, pid, uid, comm] = sum(\$count);
 "}
 ${VIEW_TYPE:+"
 			@rd_type[\$fstype] = sum(\$count);
@@ -974,7 +974,7 @@ ${VIEW_GROUP:+"
 			@wr_group[\$fstype, gid] = sum(\$count);
 "}
 ${VIEW_PID:+"
-			@wr_pid[\$fstype, pid] = sum(\$count);
+			@wr_pid[\$fstype, pid, uid, comm] = sum(\$count);
 "}
 ${VIEW_TYPE:+"
 			@wr_type[\$fstype] = sum(\$count);
@@ -1260,10 +1260,21 @@ EOF
 		# Without -w, make vsz fixed-width and bar_size variable.
 		#
 		show_vfs_column = 1
+		show_bar_column = 1
 		if (view == "TYPE" || filter_type || view_aggregates)
 			show_vfs_column = 0
-		vsz_fixed = 15 # VIEW column
-		bar_size_fixed = cols <= 80 ? 11 : 21
+		if (view == "PID") {
+			vsz_fixed = 10 # USER column
+			if (cols > 91) {
+				bar_size_fixed = cols <= 101 ? 11 : 21
+			} else {
+				show_bar_column = 0
+				bar_size_fixed = 0
+			}
+		} else {
+			vsz_fixed = 15 # VIEW column
+			bar_size_fixed = cols <= 80 ? 11 : 21
+		}
 		if (wide_view) {
 			# Fixed-width
 			bar_size = bar_size_fixed
@@ -1273,12 +1284,20 @@ EOF
 			if (show_vfs_column) {
 				vsz -= 8 + 1 # %-8s VFS + space
 			}
-			vsz -= 0 + 1 # %-*s VIEW + space
+			if (view == "PID") {
+				vsz -= 5 + 1 # %5s PID + space
+				vsz -= 0 + 1 # %-*s USER + space
+				vsz -= 15 + 1 # %-15s COMM + space
+			} else {
+				vsz -= 0 + 1 # %-*s VIEW + space
+			}
 			vsz -= 12 + 1 # %12s TOTAL + space
 			vsz -= 12 + 1 # %12s READ(IN) + space
-			vsz -= bar_size + 1 # bar + space
+			if (bar_size > 0) {
+				vsz -= bar_size + 1 # bar + space
+			}
 			vsz -= 12 # %-12s WRITE(OUT)
-		} else {
+		} else if (show_bar_column) {
 			# Fixed-width
 			vsz = vsz_fixed
 
@@ -1287,11 +1306,20 @@ EOF
 			if (show_vfs_column) {
 				bar_size -= 8 + 1 # %-8s VFS + space
 			}
-			bar_size -= vsz + 1 # %-15s VIEW + space
+			if (view == "PID") {
+				bar_size -= 5 + 1 # %5s PID + space
+				bar_size -= vsz + 1 # %-8s USER + space
+				bar_size -= 15 + 1 # %-15s COMM + space
+			} else {
+				bar_size -= vsz + 1 # %-15s VIEW + space
+			}
 			bar_size -= 12 + 1 # %12s TOTAL + space
 			bar_size -= 12 + 1 # %12s READ(IN) + space
 			bar_size -= 0 + 1 # variable-width bar + space
 			bar_size -= 12 # %-12s WRITE(OUT)
+		} else {
+			# Fixed-width
+			vsz = vsz_fixed
 		}
 
 		#
@@ -1303,18 +1331,30 @@ EOF
 			fmt = fmt " %-8s" # VFS column
 			fmtsz += 1 + 8
 		}
-		fmt = fmt " %-" vsz "s" # VIEW column
-		fmtsz += 1 + vsz
+		if (view == "PID") {
+			fmt = fmt " %5s" # PID column
+			fmt = fmt " %-" vsz "s" # USER column
+			fmt = fmt " %-15s" # COMM column
+			fmtsz += 1 + 5 + 1 + vsz + 1 + 15
+		} else {
+			fmt = fmt " %-" vsz "s" # VIEW column
+			fmtsz += 1 + vsz
+		}
 		fmt = fmt " %12s" # TOTAL column
 		fmt = fmt " %12s" # READ(IN) column
 		fmtsz += 1 + 12 + 1 + 12
-		full_bar = bar_size
-		bar_size = int(bar_size / 2)
-		if (bar_size * 2 == full_bar) bar_size--
-		fmt = fmt " %*s|%-*s"
-		fmtsz += 1 + bar_size + 1 + bar_size
-		fmt = fmt " %-12s" # WRITE(OUT) column
-		fmtsz += 1 + 12
+		if (show_bar_column) {
+			full_bar = bar_size
+			bar_size = int(bar_size / 2)
+			if (bar_size * 2 == full_bar) bar_size--
+			fmt = fmt " %*s|%-*s"
+			fmtsz += 1 + bar_size + 1 + bar_size
+			fmt = fmt " %-12s" # WRITE(OUT) column
+			fmtsz += 1 + 12
+		} else {
+			fmt = fmt " %12s" # WRITE(OUT) column
+			fmtsz += 1 + 12
+		}
 		fmt = substr(fmt, 2) "\n" # Trim leading space, append \n
 		fmtsz -= 1
 
@@ -1339,7 +1379,7 @@ EOF
 	function uid2name(uid,        cmd, id, idf, name, n, k, idx, i, ret)
 	{
 		n = split(uid, k, /, /)
-		uid = k[idx = 2]
+		uid = n < 3 ? k[idx = 2] : k[idx = 3]
 		if (uid in uid2name_cache) {
 			name = uid2name_cache[uid]
 		} else {
@@ -1408,7 +1448,52 @@ EOF
 			buffer_add(sprintf("\033[H\033[J"))
 	}
 
-	function buffer_add_header()
+	function buffer_add1(vfs, arg1, total, read, read_bar, write_bar,
+		write, prefix, suffix)
+	{
+		if (show_vfs_column) {
+			if (show_bar_column) {
+				buffer_add(sprintf(prefix fmt suffix, vfs,
+					arg1, total, read, bar_size, read_bar,
+					bar_size, write_bar, write))
+			} else {
+				buffer_add(sprintf(prefix fmt suffix, vfs,
+					arg1, total, read, write))
+			}
+		} else if (show_bar_column) {
+			buffer_add(sprintf(prefix fmt suffix, arg1, total,
+				read, bar_size, read_bar, bar_size, write_bar,
+				write))
+		} else {
+			buffer_add(sprintf(prefix fmt suffix, arg1, total,
+				read, write))
+		}
+	}
+
+	function buffer_add3(vfs, arg1, arg2, arg3, total, read, read_bar,
+		write_bar, write, prefix, suffix)
+	{
+		if (show_vfs_column) {
+			if (show_bar_column) {
+				buffer_add(sprintf(prefix fmt suffix, vfs,
+					arg1, arg2, arg3, total, read,
+					bar_size, read_bar, bar_size,
+					write_bar, write))
+			} else {
+				buffer_add(sprintf(prefix fmt suffix, vfs,
+					arg1, arg2, arg3, total, read, write))
+			}
+		} else if (show_bar_column) {
+			buffer_add(sprintf(prefix fmt suffix, arg1, arg2, arg3,
+				total, read, bar_size, read_bar, bar_size,
+				write_bar, write))
+		} else {
+			buffer_add(sprintf(prefix fmt suffix, arg1, arg2, arg3,
+				total, read, write))
+		}
+	}
+
+	function buffer_add_header(        prefix, suffix)
 	{
 		if (output_json) return
 		buffer_add(sprintf("Interval: %-*s %31s\n",
@@ -1418,15 +1503,17 @@ EOF
 				#  9 = "Interval:"
 				#  2 = number of spaces
 				# 31 = %31s date
-		if (show_vfs_column) {
-			buffer_add(sprintf("\033[7;1m" fmt "\033[27;22m",
-				"VFS", view, "TOTAL", "READ(IN)", bar_size, "",
-				bar_size, "", "WRITE(OUT)"))
+		prefix = "\033[7;1m"
+		suffix = "\033[27;22m"
+		empty_bar = ""
+		if (view == "PID") {
+			buffer_add3("VFS", view, "USER", "COMM", "TOTAL",
+				"READ(IN)", empty_bar, empty_bar, "WRITE(OUT)",
+				prefix, suffix)
 		} else {
-			buffer_add(sprintf("\033[7;1m" fmt "\033[27;22m",
-				view == "TYPE" ? "VFS" : view, "TOTAL",
-				"READ(IN)", bar_size, "", bar_size, "",
-				"WRITE(OUT)"))
+			buffer_add1("VFS", view == "TYPE" ? "VFS" : view,
+				"TOTAL", "READ(IN)", empty_bar, empty_bar,
+				"WRITE(OUT)", prefix, suffix)
 		}
 	}
 
@@ -1455,14 +1542,14 @@ EOF
 
 		if (!match($0, /\[.*\]:/)) return 0
 		map_key = substr($0, RSTART + 1, RLENGTH - 3)
-		split(map_key, map_keys, /, /)
+		nkeys = split(map_key, map_keys, /, /)
 		map_value = $NF
 
 		map_skey = ""
 		if (show_aggregates) {
-			map_key = sprintf("%s, %s",
-				map_keys[1], map_keys[2])
-			map_skey = sprintf("*, %s", map_keys[2])
+			map_skey = "*"
+			for (n = 2; n <= nkeys; n++)
+				map_skey = map_skey ", " map_keys[n]
 		}
 
 		if (!(map_view in map_views)) {
@@ -1605,18 +1692,16 @@ EOF
 		} else {
 			read_bar = ""
 			write_bar = ""
-			if (show_vfs_column) {
-				buffer_add(sprintf(fmt, "*", "total",
+			if (view == "PID") {
+				buffer_add3("*", "total", "*", "*",
 					humanize(write_rate + read_rate),
-					humanize(read_rate), bar_size,
-					read_bar, bar_size, write_bar,
-					humanize(write_rate)))
+					humanize(read_rate), read_bar,
+					write_bar, humanize(write_rate))
 			} else {
-				buffer_add(sprintf(fmt, "total",
+				buffer_add1("*", "total",
 					humanize(write_rate + read_rate),
-					humanize(read_rate), bar_size,
-					read_bar, bar_size, write_bar,
-					humanize(write_rate)))
+					humanize(read_rate), read_bar,
+					write_bar, humanize(write_rate))
 			}
 		}
 
@@ -1697,13 +1782,22 @@ EOF
 			_cred = cred
 			if (curview == "group") {
 				cred = gid2name(cred)
-			} else if (curview == "user") {
+			} else if (curview == "user" || curview == "pid") {
 				cred = uid2name(cred)
 			}
 			if (cred != _cred) debug1("+ cred=[%s]", cred)
 		}
 
 		rw_rate = write_rate + read_rate
+		if (curview != "type") {
+			split(cred, key, /, /)
+			fstype = key[1]
+			cred = key[2]
+			if (curview == "pid") {
+				user = key[3]
+				comm = key[4]
+			}
+		}
 		if (output_json) {
 			json_out = ""
 			json_out = json_add_uint(json_out, "time", tm)
@@ -1712,13 +1806,16 @@ EOF
 				json_out = json_add_str(json_out,
 					curview, cred)
 			} else {
-				fstype = cred
-				sub(/, .*/, "", fstype)
-				sub(/^[^,]*, /, "", cred)
 				json_out = json_add_str(json_out,
 					curview, cred)
 				json_out = json_add_str(json_out,
 					"fstype", fstype)
+				if (curview == "pid" ) {
+					json_out = json_add_str(json_out,
+						"user", user)
+					json_out = json_add_str(json_out,
+						"comm", comm)
+				}
 			}
 			json_out = json_add_uint(json_out,
 				"total_bytes", cred_read + cred_write)
@@ -1734,21 +1831,15 @@ EOF
 				"write_rate", write_rate)
 			buffer_add("{" json_out "}\n")
 		} else {
-			if (curview != "type") {
-				fstype = cred
-				sub(/, .*/, "", fstype)
-				sub(/^[^,]*, /, "", cred)
-			}
-			if (show_vfs_column) {
-				buffer_add(sprintf(fmt, fstype, cred,
-					humanize(rw_rate), humanize(read_rate),
-					bar_size, read_bar, bar_size,
-					write_bar, humanize(write_rate)))
+			if (curview == "pid") {
+				buffer_add3(fstype, cred, user, comm,
+					humanize(rw_rate),
+					humanize(read_rate), read_bar,
+					write_bar, humanize(write_rate))
 			} else {
-				buffer_add(sprintf(fmt, cred,
-					humanize(rw_rate), humanize(read_rate),
-					bar_size, read_bar, bar_size,
-					write_bar, humanize(write_rate)))
+				buffer_add1(fstype, cred, humanize(rw_rate),
+					humanize(read_rate), read_bar,
+					write_bar, humanize(write_rate))
 			}
 		}
 

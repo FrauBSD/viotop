@@ -4,15 +4,15 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-20 16:50:41 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 18:36:06 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
-DEFAULT_INTERVAL=2 # seconds
+DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.2 $'
+VERSION='$Version: 3.2.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -95,8 +95,7 @@ usage()
 	printf "$optfmt" "-g" "View read/write activity by group."
 	printf "$optfmt" "-h" "Print usage statement and exit."
 	printf "$optfmt" "-i sec" \
-		"Set interval seconds. Default $DEFAULT_INTERVAL."
-	printf "$optfmt" "" "Accepts decimal point on seconds."
+		"Set interval seconds. Default \`$DEFAULT_INTERVAL'."
 	printf "$optfmt" "-J" "Output most JSON data. Same as \`-jgtu'."
 	printf "$optfmt" "-j" "Output JSON formatted data."
 	printf "$optfmt" "-N num" "Perform num samples and exit."

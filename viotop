@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 18:36:06 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-21 18:42:21 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 3.2.1 $'
+VERSION='$Version: 3.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -26,6 +26,7 @@ FAILURE=1
 # Command-line options
 #
 DEBUG=					# -d
+DEBUGGER=				# -D
 FILTER_GROUP=				# -G group
 FILTER_TYPE=				# -T type
 FILTER_USER=				# -U user
@@ -91,6 +92,7 @@ usage()
 	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
+	printf "$optfmt" "-D" "Enable debugger."
 	printf "$optfmt" "-G group" "Group filter (name or id)."
 	printf "$optfmt" "-g" "View read/write activity by group."
 	printf "$optfmt" "-h" "Print usage statement and exit."
@@ -263,11 +265,12 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts AacdG:ghi:JjN:nP:prsT:tU:uvw flag; do
+while getopts AacDdG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
 	c) VIEW=COMM VIEW_COMM=1 ;;
+	D) DEBUGGER=1 RAW_VIEW=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
 	G) FILTER_GROUP="$OPTARG" ;;
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
@@ -1211,6 +1214,7 @@ EOF
 
 } | awk -v cols=$cols \
 	-v debug=${DEBUG:-0} \
+	-v debugger=${DEBUGGER:-0} \
 	-v filter_type=${FILTER_TYPE:+1} \
 	-v interval=$INTERVAL_SECONDS \
 	-v no_names=${NO_NAMES:-0} \
@@ -1225,6 +1229,8 @@ EOF
 	'####################################### BEGIN
 
 	BEGIN {
+		debug2("Terminal size (rows, cols) = (%d, %d)", rows, cols)
+
 		exit_status = 0 # SUCCESS
 
 		samples_left = nsamples
@@ -1305,6 +1311,8 @@ EOF
 
 	######################################## FUNCTIONS
 
+	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
+	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
 	function buffer_add(text) { BUFFER = BUFFER text }
 	function print_buffer() { printf "%s", BUFFER }
 
@@ -1360,7 +1368,7 @@ EOF
 		clear_data()
 
 		BUFFER = ""
-		if (!output_json)
+		if (!output_json && !debugger)
 			buffer_add(sprintf("\033[H\033[J"))
 	}
 
@@ -1610,6 +1618,8 @@ EOF
 			if (view_aggregates) return
 			pch = "-"
 		}
+		debug1("-> process_cred(curview = %s, ...)", curview)
+		debug1("+ cred=[%s]", cred)
 
 		cred_read = map_key_read[curview, cred]
 		cred_write = map_key_write[curview, cred]
@@ -1714,7 +1724,7 @@ EOF
 		# Exit if no more samples desired
 		if (/^---$/) sample_check()
 
-		next
+		if (!debugger) next
 	}
 
 	/^===$/ {

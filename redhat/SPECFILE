@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 3.2
+Version: 3.2.1
 Release: 1
 Buildarch: noarch
 
@@ -77,6 +77,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Tue Apr 21 2020 Devin Teske <dteske@fraubsd.org> 3.2.1-1
+- b633de5 Reduce usage verbosity, give decimal hint
 * Mon Apr 20 2020 Devin Teske <dteske@fraubsd.org> 3.2-1
 - 19096fa Hide VFS column when given -A or -T type
 * Mon Apr 20 2020 Devin Teske <dteske@fraubsd.org> 3.1.2-1

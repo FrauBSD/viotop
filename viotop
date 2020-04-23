@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-23 16:34:36 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-23 16:58:37 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.2.1 $'
+VERSION='$Version: 4.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -31,6 +31,7 @@ FILTER_GROUP=				# -G group
 FILTER_PID=				# -P pid
 FILTER_TYPE=				# -T type
 FILTER_USER=				# -U user
+IGNORE_RUNNING=				# -I
 INTERVAL=$DEFAULT_INTERVAL		# -i sec
 NO_NAMES=				# -n
 NSAMPLES=				# -N num
@@ -98,6 +99,7 @@ usage()
 	printf "$optfmt" "-G group" "Group filter (name or id)."
 	printf "$optfmt" "-g" "View read/write activity by group."
 	printf "$optfmt" "-h" "Print usage statement and exit."
+	printf "$optfmt" "-I" "Ignore already-running processes."
 	printf "$optfmt" "-i sec" \
 		"Set interval seconds. Default \`$DEFAULT_INTERVAL'."
 	printf "$optfmt" "-J" "Output most JSON data. Same as \`-ajgtu'."
@@ -267,7 +269,7 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts AabcDdG:ghi:JjN:nP:prsT:tU:uvw flag; do
+while getopts AabcDdG:ghIi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
@@ -277,6 +279,7 @@ while getopts AabcDdG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	d) DEBUG=1 RAW_VIEW=1 ;;
 	G) FILTER_GROUP="$OPTARG" ;;
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
+	I) IGNORE_RUNNING=1 ;;
 	i) INTERVAL="$OPTARG" ;;
 	J) VIEW=JSON OUTPUT_JSON=1 SHOW_AGGREGATES=1 \
 		VIEW_GROUP=1 VIEW_TYPE=1 VIEW_USER=1 ;;

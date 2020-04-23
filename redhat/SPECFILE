@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 4.1
+Version: 4.2
 Release: 1
 Buildarch: noarch
 
@@ -77,6 +77,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Wed Apr 22 2020 Devin Teske <dteske@fraubsd.org> 4.2-1
+- 78c5b2b Tolerate interval drops in rate calculations
 * Wed Apr 22 2020 Devin Teske <dteske@fraubsd.org> 4.1-1
 - cc829f3 Add -b for showing bytes instead of rates
 * Tue Apr 21 2020 Devin Teske <dteske@fraubsd.org> 4.0-1

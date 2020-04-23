@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-22 17:05:11 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-22 17:59:49 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.1 $'
+VERSION='$Version: 4.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -670,6 +670,7 @@ fi
 
 		printf("===\n"); // Clear screen and draw header
 		printf("info|Sampling data for ${INTERVAL}s (\`-i sec')...\n");
+		time("time|%s\n");
 	}
 
 	////////////////////////////////////////////////// OPEN PROBES
@@ -1034,6 +1035,7 @@ ${VIEW_USER:+
 		clear(@wr_user);
 }
 
+		time("time|%s\n");
 		printf("---\n");
 	}
 
@@ -1238,7 +1240,7 @@ EOF
 		debug2("Terminal size (rows, cols) = (%d, %d)", rows, cols)
 
 		exit_status = 0 # SUCCESS
-
+		time_delta = 0 # Calculated
 		samples_left = nsamples
 
 		# Obtain awk pid
@@ -1379,6 +1381,7 @@ EOF
 		}
 
 		# Declare arrays
+		delete times
 		delete uid2name_cache
 		delete gid2name_cache
 	}
@@ -1682,16 +1685,20 @@ EOF
 		rw_rate, rw_total,
 		_keys_sorted, cred, i, v, r, n, table_rows)
 	{
+		time_delta = times[2] - times[1]
+		if (time_delta < 1) time_delta = 1 # prevent division-by-0
+		debug1("Time delta is %d seconds", time_delta)
+
 		read_total = map_view_read[curview]
-		read_rate = read_total / interval
+		read_rate = read_total / time_delta
 		read_bar = ""
 
 		write_total = map_view_write[curview]
-		write_rate = write_total / interval
+		write_rate = write_total / time_delta
 		write_bar = ""
 
 		rw_total = read_total + write_total
-		rw_rate = rw_total / interval
+		rw_rate = rw_total / time_delta
 
 		if (output_json) {
 			json_out = ""
@@ -1791,7 +1798,7 @@ EOF
 		cred_write = map_key_write[curview, cred]
 		cred_rw = cred_read + cred_write
 
-		read_rate = cred_read / interval
+		read_rate = cred_read / time_delta
 		if (read_total > 0)
 			read_bar_pct = cred_read / read_total
 		else
@@ -1801,7 +1808,7 @@ EOF
 		gsub(/ /, pch, read_bar)
 		sub(/^./, "<", read_bar)
 
-		write_rate = cred_write / interval
+		write_rate = cred_write / time_delta
 		if (write_total > 0)
 			write_bar_pct = cred_write / write_total
 		else
@@ -1821,7 +1828,7 @@ EOF
 			if (cred != _cred) debug1("+ cred=[%s]", cred)
 		}
 
-		rw_rate = cred_rw / interval
+		rw_rate = cred_rw / time_delta
 		if (curview != "type") {
 			split(cred, key, /, /)
 			fstype = key[1]
@@ -1914,6 +1921,11 @@ EOF
 	sub(/^info\|/, "") {
 		if (!output_json) print
 		next
+	}
+
+	sub(/^time\|/, "") {
+		times[1] = times[2]
+		times[2] = $0
 	}
 
 	/^@/ { parse_map() }

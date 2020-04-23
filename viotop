@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-21 19:32:56 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-22 17:05:11 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.0 $'
+VERSION='$Version: 4.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -37,6 +37,7 @@ NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
 RAW_VIEW=				# -r
 SHOW_AGGREGATES=			# -a
+SHOW_BYTES=				# -b
 VIEW_AGGREGATES=			# -A
 VIEW_COMM=				# -c
 VIEW_GROUP=				# -g
@@ -89,6 +90,7 @@ usage()
 	printf "Usage: %s [OPTIONS] [--] [comm]\n" "$pgm"
 	printf "Options:\n"
 	printf "$optfmt" "-a" "Show aggregate subtotals."
+	printf "$optfmt" "-b" "Show bytes instead of bandwidth."
 	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
@@ -265,10 +267,11 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts AacDdG:ghi:JjN:nP:prsT:tU:uvw flag; do
+while getopts AabcDdG:ghi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
+	b) SHOW_BYTES=1 ;;
 	c) VIEW=COMM VIEW_COMM=1 ;;
 	D) DEBUGGER=1 RAW_VIEW=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
@@ -302,6 +305,14 @@ shift $(( $OPTIND - 1 ))
 #
 [ $# -le 1 ] || usage "Too many arguments" # NOTREACHED
 FILTER_COMM="$1"
+
+#
+# Prevent non-functional options
+#
+if [ "$SHOW_BYTES" ]; then
+	[ "$VIEW" != "JSON" ] || die "-b cannot be combined with -J"
+	[ ! "$OUTPUT_JSON" ] || die "-b cannot be combined with -j"
+fi
 
 #
 # Silently ignore previous view options unless JSON output
@@ -1217,6 +1228,7 @@ EOF
 	-v raw_view=${RAW_VIEW:-0} \
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
+	-v show_bytes=${SHOW_BYTES:-0} \
 	-v view="$VIEW" \
 	-v view_aggregates=${VIEW_AGGREGATES:-0} \
 	-v wide_view=${WIDE_VIEW:-0} \
@@ -1251,20 +1263,22 @@ EOF
 		#
 		# Calculate columns and column widths
 		#
-		# NB: vsz = size of VIEW column ("view size")
 		# NB: bar_size = size of bar column (if shown)
+		# NB: dsz = size of TOTAL, READ(IN), WRITE(OUT) data columns
+		# NB: vsz = size of VIEW column ("view size")
 		#
 		# If given -w (wide view) make bar_size fixed-width and
 		# vsz variable-width.
 		#
 		# Without -w, make vsz fixed-width and bar_size variable.
 		#
+		dsz = show_bytes ? 10 : 12
 		show_vfs_column = 1
 		show_bar_column = 1
 		if (view == "TYPE" || filter_type || view_aggregates)
 			show_vfs_column = 0
 		if (view == "PID") {
-			vsz_fixed = 10 # USER column
+			vsz_fixed = show_bytes ? 16 : 10 # USER column
 			if (cols > 91) {
 				bar_size_fixed = cols <= 101 ? 11 : 21
 			} else {
@@ -1272,7 +1286,7 @@ EOF
 				bar_size_fixed = 0
 			}
 		} else {
-			vsz_fixed = 15 # VIEW column
+			vsz_fixed = show_bytes ? 21 : 15 # VIEW column
 			bar_size_fixed = cols <= 80 ? 11 : 21
 		}
 		if (wide_view) {
@@ -1291,12 +1305,12 @@ EOF
 			} else {
 				vsz -= 0 + 1 # %-*s VIEW + space
 			}
-			vsz -= 12 + 1 # %12s TOTAL + space
-			vsz -= 12 + 1 # %12s READ(IN) + space
+			vsz -= dsz + 1 # TOTAL + space
+			vsz -= dsz + 1 # READ(IN) + space
 			if (bar_size > 0) {
 				vsz -= bar_size + 1 # bar + space
 			}
-			vsz -= 12 # %-12s WRITE(OUT)
+			vsz -= dsz # WRITE(OUT)
 		} else if (show_bar_column) {
 			# Fixed-width
 			vsz = vsz_fixed
@@ -1311,12 +1325,12 @@ EOF
 				bar_size -= vsz + 1 # %-8s USER + space
 				bar_size -= 15 + 1 # %-15s COMM + space
 			} else {
-				bar_size -= vsz + 1 # %-15s VIEW + space
+				bar_size -= vsz + 1 # VIEW + space
 			}
-			bar_size -= 12 + 1 # %12s TOTAL + space
-			bar_size -= 12 + 1 # %12s READ(IN) + space
+			bar_size -= dsz + 1 # TOTAL + space
+			bar_size -= dsz + 1 # READ(IN) + space
 			bar_size -= 0 + 1 # variable-width bar + space
-			bar_size -= 12 # %-12s WRITE(OUT)
+			bar_size -= dsz # WRITE(OUT)
 		} else {
 			# Fixed-width
 			vsz = vsz_fixed
@@ -1340,20 +1354,20 @@ EOF
 			fmt = fmt " %-" vsz "s" # VIEW column
 			fmtsz += 1 + vsz
 		}
-		fmt = fmt " %12s" # TOTAL column
-		fmt = fmt " %12s" # READ(IN) column
-		fmtsz += 1 + 12 + 1 + 12
+		fmt = fmt " %" dsz "s" # TOTAL column
+		fmt = fmt " %" dsz "s" # READ(IN) column
+		fmtsz += 1 + dsz + 1 + dsz
 		if (show_bar_column) {
 			full_bar = bar_size
 			bar_size = int(bar_size / 2)
 			if (bar_size * 2 == full_bar) bar_size--
 			fmt = fmt " %*s|%-*s"
 			fmtsz += 1 + bar_size + 1 + bar_size
-			fmt = fmt " %-12s" # WRITE(OUT) column
-			fmtsz += 1 + 12
+			fmt = fmt " %-" dsz "s" # WRITE(OUT) column
+			fmtsz += 1 + dsz
 		} else {
-			fmt = fmt " %12s" # WRITE(OUT) column
-			fmtsz += 1 + 12
+			fmt = fmt " %" dsz "s" # WRITE(OUT) column
+			fmtsz += 1 + dsz
 		}
 		fmt = substr(fmt, 2) "\n" # Trim leading space, append \n
 		fmtsz -= 1
@@ -1599,7 +1613,8 @@ EOF
 			value /= 1024
 		}
 		if (v ~ /\./) sub(/\.?0+$/, "", v)
-		value = sprintf("%'"'"'.2f%sB/s", value, suffixes[suffix])
+		value = sprintf("%'"'"'.2f%s%s", value, suffixes[suffix],
+			show_bytes ? "B" : "B/s")
 		return value
 	}
 
@@ -1664,12 +1679,19 @@ EOF
 	function process_view(curview,
 		read_bar, read_rate, read_total,
 		write_bar, write_rate, write_total,
+		rw_rate, rw_total,
 		_keys_sorted, cred, i, v, r, n, table_rows)
 	{
 		read_total = map_view_read[curview]
 		read_rate = read_total / interval
+		read_bar = ""
+
 		write_total = map_view_write[curview]
 		write_rate = write_total / interval
+		write_bar = ""
+
+		rw_total = read_total + write_total
+		rw_rate = rw_total / interval
 
 		if (output_json) {
 			json_out = ""
@@ -1677,9 +1699,9 @@ EOF
 			json_out = json_add_str(json_out,
 				"ident", "total_" curview)
 			json_out = json_add_uint(json_out,
-				"total_bytes", read_total + write_total)
+				"total_bytes", rw_total)
 			json_out = json_add_float(json_out,
-				"total_rate", read_rate + write_rate)
+				"total_rate", rw_rate)
 			json_out = json_add_uint(json_out,
 				"read_bytes", read_total)
 			json_out = json_add_float(json_out,
@@ -1689,17 +1711,27 @@ EOF
 			json_out = json_add_float(json_out,
 				"write_rate", write_rate)
 			buffer_add("{" json_out "}\n")
-		} else {
-			read_bar = ""
-			write_bar = ""
+		} else if (show_bytes) {
 			if (view == "PID") {
 				buffer_add3("*", "total", "*", "*",
-					humanize(write_rate + read_rate),
+					humanize(rw_total),
+					humanize(read_total), read_bar,
+					write_bar, humanize(write_total))
+			} else {
+				buffer_add1("*", "total",
+					humanize(rw_total),
+					humanize(read_total), read_bar,
+					write_bar, humanize(write_total))
+			}
+		} else {
+			if (view == "PID") {
+				buffer_add3("*", "total", "*", "*",
+					humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))
 			} else {
 				buffer_add1("*", "total",
-					humanize(write_rate + read_rate),
+					humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))
 			}
@@ -1735,7 +1767,7 @@ EOF
 	function process_cred(curview, cred, read_total, write_total,
 		cred_read, read_bar, read_bar_pct, read_rate,
 		cred_write, write_bar, write_bar_pct, write_rate,
-		_cred, key, pch)
+		_cred, cred_rw, key, pch)
 	{
 		pch = "="
 		if (show_aggregates) {
@@ -1757,6 +1789,7 @@ EOF
 
 		cred_read = map_key_read[curview, cred]
 		cred_write = map_key_write[curview, cred]
+		cred_rw = cred_read + cred_write
 
 		read_rate = cred_read / interval
 		if (read_total > 0)
@@ -1788,7 +1821,7 @@ EOF
 			if (cred != _cred) debug1("+ cred=[%s]", cred)
 		}
 
-		rw_rate = write_rate + read_rate
+		rw_rate = cred_rw / interval
 		if (curview != "type") {
 			split(cred, key, /, /)
 			fstype = key[1]
@@ -1818,7 +1851,7 @@ EOF
 				}
 			}
 			json_out = json_add_uint(json_out,
-				"total_bytes", cred_read + cred_write)
+				"total_bytes", cred_rw)
 			json_out = json_add_float(json_out,
 				"total_rate", rw_rate)
 			json_out = json_add_uint(json_out,
@@ -1830,6 +1863,17 @@ EOF
 			json_out = json_add_float(json_out,
 				"write_rate", write_rate)
 			buffer_add("{" json_out "}\n")
+		} else if (show_bytes) {
+			if (curview == "pid") {
+				buffer_add3(fstype, cred, user, comm,
+					humanize(cred_rw),
+					humanize(cred_read), read_bar,
+					write_bar, humanize(cred_write))
+			} else {
+				buffer_add1(fstype, cred, humanize(cred_rw),
+					humanize(cred_read), read_bar,
+					write_bar, humanize(cred_write))
+			}
 		} else {
 			if (curview == "pid") {
 				buffer_add3(fstype, cred, user, comm,

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-24 17:58:39 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-24 18:05:49 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.3.3 $'
+VERSION='$Version: 5.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -27,6 +27,7 @@ FAILURE=1
 #
 DEBUG=					# -d
 DEBUGGER=				# -D
+FILTER_FOLLOW=				# -f
 FILTER_GROUP=				# -G group
 FILTER_PID=				# -P pid
 FILTER_TYPE=				# -T type
@@ -53,8 +54,11 @@ WIDE_VIEW=				# -w
 FILTER_COMM=
 FILTER_GID=
 FILTER_UID=
+FOLLOW_PIDS=
+FORK_CONDITION=
 INTERVAL_PROBE= # Calculated
 INTERVAL_SECONDS= # Raw value for awk
+MAP_ID_FOLLOW=
 MAP_ID_TRACE=
 OPEN_CONDITION=
 OPEN_FDS=
@@ -196,6 +200,23 @@ getword()
 	fi
 }
 
+num2bytes()
+{
+	local __num="$1" __size="${2%B}" __var_to_set="$3"
+	local __out=
+	while [ $__size -gt 0 ]; do
+		__out="$__out $(( $__num % 256 ))"
+		__num=$(( $__num >> 8 ))
+		__size=$(( $__size - 1 ))
+	done
+	__out="${__out# }"
+	if [ "$__var_to_set" ]; then
+		eval $__var_to_set=\"\$__out\"
+	else
+		echo "$__out"
+	fi
+}
+
 bpf_prog_id()
 {
 	local __pid="$1" __prog="$2" __var_to_set="$3"
@@ -269,7 +290,7 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts AabcDdG:ghIi:JjN:nP:prsT:tU:uvw flag; do
+while getopts AabcDdfG:ghIi:JjN:nP:prsT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
@@ -277,6 +298,7 @@ while getopts AabcDdG:ghIi:JjN:nP:prsT:tU:uvw flag; do
 	c) VIEW=COMM VIEW_COMM=1 ;;
 	D) DEBUGGER=1 RAW_VIEW=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
+	f) FILTER_FOLLOW=1 ;;
 	G) FILTER_GROUP="$OPTARG" ;;
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
 	I) IGNORE_RUNNING=1 ;;
@@ -329,6 +351,14 @@ if [ ! "$OUTPUT_JSON" ]; then
 	TYPE) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
 	USER) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
 	esac
+fi
+
+#
+# Process `-f' option
+#
+if [ "$FILTER_FOLLOW" ]; then
+	[ "$FILTER_COMM$FILTER_GROUP$FILTER_PID$FILTER_USER" ] ||
+		die "-f requires at least one -G, -P, -U, or comm argument"
 fi
 
 #
@@ -434,6 +464,102 @@ fi
 	set -m
 
 	#
+	# Find matching processes and their children
+	#
+	if [ "$FILTER_FOLLOW" -a ! "$IGNORE_RUNNING$DEBUG" ]; then
+		info "Gathering active process info..."
+		if [ "$FILTER_PID" ]; then
+			FOLLOW_PIDS=$( pstree -p $FILTER_PID | awk \
+				-v filter_group="$FILTER_GROUP" \
+				-v filter_user="$FILTER_USER" '
+			BEGIN { delete seen }
+			function del(re){gsub(re,"")}
+			function space(re){gsub(re," ")}
+			function check_group(pid,        file, gid, L) {
+				if (filter_group == "") return 1 # OK
+				gid = ""
+				file = sprintf("/proc/%d/status", pid)
+				while (getline L < file > 0) {
+					if (L !~ /^Gid:/) next
+					sub(/^Gid:[[:space:]]*/, "", L)
+					sub(/[^0-9].*/, "", L)
+					gid = L
+					break
+				}
+				close(file)
+				return gid == filter_group
+			}
+			function check_user(pid,        file, uid, L) {
+				if (filter_user == "") return 1 # OK
+				uid = ""
+				file = sprintf("/proc/%d/status", pid)
+				while (getline L < file > 0) {
+					if (L !~ /^Uid:/) next
+					sub(/^Uid:[[:space:]]*/, "", L)
+					sub(/[^0-9].*/, "", L)
+					uid = L
+					break
+				}
+				close(file)
+				return uid == filter_user
+			}
+			match($0, /^[^[:space:](]+\([0-9]+\)/) {
+				pid = substr($0, 1, RLENGTH - 1)
+				$0 = substr($0, RLENGTH + 1)
+				sub(/.*\(/, "", pid)
+				if (!(pid in seen)) pids = pids " " pid
+			}
+			{
+				space("[^0-9]")
+				space("[[:space:]]+")
+				del("(^[[:space:]]+|[[:space:]]+$)")
+				npids = split($0, list)
+				for (n = 1; n <= npids; n++) {
+					if ((pid = list[n]) in seen) continue
+
+					# group filter
+					if (!check_group(pid)) continue
+
+					# user filter
+					if (!check_user(pid)) continue
+
+					pids = pids " " pid
+					seen[pid]
+				}
+			}
+			END { print substr(pids, 2) }
+			' )
+		elif [ "$FILTER_COMM$FILTER_USER$FILTER_GROUP" ]; then
+			FOLLOW_PIDS=$( pgrep ${FILTER_COMM:+"$FILTER_COMM"} \
+				${FILTER_USER:+-U "$FILTER_USER"} \
+				${FILTER_GROUP:+-G "$FILTER_GROUP"} |
+				awk '
+			BEGIN { delete seen }
+			function del(re){gsub(re,"")}
+			function space(re){gsub(re," ")}
+			match($0, /^[^[:space:](]+\([0-9]+\)/) {
+				pid = substr($0, 1, RLENGTH - 1)
+				$0 = substr($0, RLENGTH + 1)
+				sub(/.*\(/, "", pid)
+				if (!(pid in seen)) pids = pids " " pid
+			}
+			{
+				space("[^0-9]")
+				space("[[:space:]]+")
+				del("(^[[:space:]]+|[[:space:]]+$)")
+				npids = split($0, list)
+				for (n = 1; n <= npids; n++) {
+					if ((pid = list[n]) in seen) continue
+					pids = pids " " pid
+					seen[pid]
+				}
+			}
+			END { print substr(pids, 2) }
+			' )
+		fi
+	fi
+
+	#
 	# Find open *file* descriptors
 	#
 	if [ ! "$IGNORE_RUNNING$DEBUG" ]; then
@@ -442,14 +568,22 @@ fi
 		OPEN_FDS=$( run_lsof | awk \
 			-v debug=${DEBUG:-0} \
 			-v filter_comm="$FILTER_COMM" \
+			-v filter_follow=${FILTER_FOLLOW:-0} \
 			-v filter_gid="$FILTER_GID" \
 			-v filter_pid="$FILTER_PID" \
 			-v filter_type="$FILTER_TYPE" \
 			-v filter_user="$FILTER_USER" \
+			-v follow_pids="$FOLLOW_PIDS" \
 			-v stderr=/dev/stderr \
 		'####################################### BEGIN
 
 		BEGIN {
+			delete follow
+			nfollow = split(follow_pids, list)
+			for (n = 1; n <= nfollow; n++) {
+				follow[list[n]]
+			}
+
 			delete mounts
 			delete mount_type
 			file = "/proc/mounts"
@@ -591,34 +725,42 @@ fi
 			# FILTERS
 			#
 
-			# pid filter
-			if (filter_pid != "" && pid != filter_pid) {
+			# follow filter
+			if (filter_follow && !(pid in follow)) {
 				next
-			}
+			} else if (!filter_follow) {
+				# NB: follow_pids should contain all the pids
+				# that match the below criterion.
 
-			# comm filter
-			if (filter_comm != "" && cmd != filter_comm) {
-				next
-			}
-
-			# user filter
-			if (filter_user != "" && user != filter_user) {
-				next
-			}
-
-			# group filter
-			if (filter_gid != "") {
-				gid = ""
-				file = sprintf("/proc/%d/status", pid)
-				while (getline L < file > 0) {
-					if (L !~ /^Gid:/) continue
-					sub(/^Gid:[[:space:]]*/, "", L)
-					sub(/[^0-9].*/, "", L)
-					gid = L
-					break
+				# pid filter
+				if (filter_pid != "" && pid != filter_pid) {
+					next
 				}
-				close(file)
-				if (gid != filter_gid) next
+
+				# comm filter
+				if (filter_comm != "" && cmd != filter_comm) {
+					next
+				}
+
+				# user filter
+				if (filter_user != "" && user != filter_user) {
+					next
+				}
+
+				# group filter
+				if (filter_gid != "") {
+					gid = ""
+					file = sprintf("/proc/%d/status", pid)
+					while (getline L < file > 0) {
+						if (L !~ /^Gid:/) continue
+						sub(/^Gid:[[:space:]]*/, "", L)
+						sub(/[^0-9].*/, "", L)
+						gid = L
+						break
+					}
+					close(file)
+					if (gid != filter_gid) next
+				}
 			}
 
 			#
@@ -642,7 +784,14 @@ fi
 	condition=
 	if [ "$FILTER_COMM" ]; then
 		FILTER_COMM="\"$FILTER_COMM\""
-		condition="$condition && comm == $FILTER_COMM"
+		if [ "$FILTER_FOLLOW" ]; then
+			# For tracepoint:sched:sched_process_fork
+			condition="$condition && args->parent_comm"
+			condition="$condition == $FILTER_COMM"
+		else
+			# For tracepoint:syscalls:sys_enter_open*
+			condition="$condition && comm == $FILTER_COMM"
+		fi
 	fi
 	if [ "$FILTER_GID" ]; then
 		condition="$condition && gid == $FILTER_GID"
@@ -654,7 +803,12 @@ fi
 		condition="$condition && uid == $FILTER_UID"
 	fi
 	condition="${condition# && }"
-	OPEN_CONDITION="$condition"
+	if [ "$FILTER_FOLLOW" ]; then
+		FORK_CONDITION="$condition"
+		OPEN_CONDITION="@follow[pid]"
+	else
+		OPEN_CONDITION="$condition"
+	fi
 
 	#
 	# Start background bpftrace
@@ -676,11 +830,47 @@ fi
 	{
 		@trace[-1,-1] = ""; // Required to create map
 		delete(@trace[-1,-1]); // Delete dummy entry
-
+${FILTER_FOLLOW:+
+		@follow[-1] = 1;
+		delete(@follow[-1]);
+}
 		printf("===\n"); // Clear screen and draw header
 		printf("info|Sampling data for ${INTERVAL}s (\`-i sec')...\n");
 		time("time|%s\n");
 	}
+
+${FILTER_FOLLOW:+"
+	////////////////////////////////////////////////// FORK PROBE
+
+	tracepoint:sched:sched_process_fork
+	{
+		\$parent_pid = args->parent_pid;
+		\$child_pid = args->child_pid;
+
+		//
+		// Flag follow-children
+		//
+		if ($FORK_CONDITION) {
+			@follow[\$parent_pid] = 1;
+		}
+		if (@follow[\$parent_pid]) {
+			@follow[\$child_pid] = 1;
+		}
+	}
+
+	////////////////////////////////////////////////// EXIT PROBE
+
+	tracepoint:sched:sched_process_exit
+	{
+		\$pid = args->pid;
+
+		//
+		// Free flags
+		//
+
+		delete(@follow[\$pid]);
+	}
+"}
 
 	////////////////////////////////////////////////// OPEN PROBES
 
@@ -1020,6 +1210,9 @@ ${VIEW_USER:+
 
 	END
 	{
+${FILTER_FOLLOW:+
+		clear(@follow);
+}
 		// VIEWS
 ${VIEW_COMM:+
 		clear(@rd_comm);
@@ -1070,7 +1263,7 @@ EOF
 	#
 	# Identify child bpftrace
 	#
-	if [ "$OPEN_FDS" -a ! "$DEBUG" ]; then
+	if [ "$OPEN_FDS$FOLLOW_PIDS" -a ! "$DEBUG" ]; then
 		info "Waiting for bpftrace to initialize..."
 		while kill -0 $pid 2> /dev/null; do
 			if [ ! "$prog_id" ]; then
@@ -1095,6 +1288,7 @@ EOF
 		# Store map ids
 		#
 		getword -w 1 -s MAP_ID_TRACE  -d , $map_ids
+		getword -w 2 -s MAP_ID_FOLLOW -d , $map_ids
 	fi
 
 	#
@@ -1185,6 +1379,21 @@ EOF
 		count -s cnt $OPEN_FDS
 		info "Loaded $cnt fds into bpftrace map" \
 			"(pid $pid, prog $prog_id, map $MAP_ID_TRACE)"
+	fi
+
+	#
+	# Update follow map
+	#
+	if [ "$FOLLOW_PIDS" -a "$MAP_ID_FOLLOW" ]; then
+		count -s cnt $FOLLOW_PIDS
+		for pid in $FOLLOW_PIDS; do
+			num2bytes $pid 8B map_key
+			num2bytes 1    8B map_value
+			echo map update id $MAP_ID_FOLLOW \
+				key $map_key value $map_value
+		done | bpftool batch file /dev/stdin > /dev/null
+		info "Loaded $cnt pids into bpftrace map" \
+			"(pid $pid, prog $prog_id, map $MAP_ID_FOLLOW)"
 	fi
 
 	#

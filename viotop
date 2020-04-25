@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-24 17:49:23 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-24 17:58:39 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.3.2 $'
+VERSION='$Version: 4.3.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -901,23 +901,7 @@ done )
 		delete(@read_fd[tid]);
 		delete(@read_count[pid, \$fd]);
 
-		\$filtered = 0;
-
-		// FILTERS
-${FILTER_COMM:+"
-		if (comm != $FILTER_COMM) { \$filtered = 1; }
-"}
-${FILTER_GROUP:+"
-		if (gid != $FILTER_GID) { \$filtered = 1; }
-"}
-${FILTER_PID:+"
-		if (pid != $FILTER_PID) { \$filtered = 1; }
-"}
-${FILTER_USER:+"
-		if (uid != $FILTER_UID) { \$filtered = 1; }
-"}
-
-		if (\$ret > 0 && \$filtered == 0)
+		if (\$ret > 0)
 		{
 			// VIEWS
 ${VIEW_COMM:+"
@@ -969,23 +953,7 @@ ${VIEW_USER:+"
 		delete(@write_fd[tid]);
 		delete(@write_count[pid, \$fd]);
 
-		\$filtered = 0;
-
-		// FILTERS
-${FILTER_COMM:+"
-		if (comm != $FILTER_COMM) { \$filtered = 1; }
-"}
-${FILTER_GROUP:+"
-		if (gid != $FILTER_GID) { \$filtered = 1; }
-"}
-${FILTER_PID:+"
-		if (pid != $FILTER_PID) { \$filtered = 1; }
-"}
-${FILTER_USER:+"
-		if (uid != $FILTER_UID) { \$filtered = 1; }
-"}
-
-		if (\$ret > 0 && \$filtered == 0)
+		if (\$ret > 0)
 		{
 			// VIEWS
 ${VIEW_COMM:+"

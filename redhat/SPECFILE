@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 5.0
+Version: 5.1
 Release: 1
 Buildarch: noarch
 
@@ -77,6 +77,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Fri Apr 24 2020 Devin Teske <dteske@fraubsd.org> 5.1-1
+- afe07d2 Prevent accidental "-p pid" if user means "-P pid"
 * Fri Apr 24 2020 Devin Teske <dteske@fraubsd.org> 5.0-1
 - a8a6140 Add -f option to follow matching procs
 * Fri Apr 24 2020 Devin Teske <dteske@fraubsd.org> 4.3.3-1

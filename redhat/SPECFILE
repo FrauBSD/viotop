@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 4.3.1
+Version: 4.3.2
 Release: 1
 Buildarch: noarch
 
@@ -77,7 +77,9 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
-* Thu Apr 23 2020 Devin Teske <dteske@fraubsd.org> 4.3.1-1
+* Fri Apr 24 2020 Devin Teske <dteske@fraubsd.org> 4.3.2-1
+- 829fbbd Fix -P pid filter when reaping open fds
+* Fri Apr 24 2020 Devin Teske <dteske@fraubsd.org> 4.3.1-1
 - 6f5343b NFC Comments
 * Thu Apr 23 2020 Devin Teske <dteske@fraubsd.org> 4.3-1
 - 834e9a8 Add -I option to ignore already-running processes

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-24 17:42:29 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-24 17:49:23 -0700 freebsdfrau $
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +12,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 4.3.1 $'
+VERSION='$Version: 4.3.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -443,6 +443,7 @@ fi
 			-v debug=${DEBUG:-0} \
 			-v filter_comm="$FILTER_COMM" \
 			-v filter_gid="$FILTER_GID" \
+			-v filter_pid="$FILTER_PID" \
 			-v filter_type="$FILTER_TYPE" \
 			-v filter_user="$FILTER_USER" \
 			-v stderr=/dev/stderr \
@@ -589,6 +590,11 @@ fi
 			#
 			# FILTERS
 			#
+
+			# pid filter
+			if (filter_pid != "" && pid != filter_pid) {
+				next
+			}
 
 			# comm filter
 			if (filter_comm != "" && cmd != filter_comm) {

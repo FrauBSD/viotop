@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-30 15:56:54 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-30 16:16:29 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -36,7 +36,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 5.1.1 $'
+VERSION='$Version: 5.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -314,7 +314,7 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts AabcDdfG:ghIi:JjN:nP:prsT:tU:uvw flag; do
+while getopts AabcDdfG:ghIi:JjN:nP:prT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-30 16:48:12 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-30 16:56:54 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -36,7 +36,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.2 $'
+VERSION='$Version: 6.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1693,8 +1693,6 @@ EOF
 			if (name == "") name = uid
 			uid2name_cache[uid] = name
 		}
-		if (!output_json && length(name) > vsz)
-			name = substr(name, 1, vsz)
 		ret = ""
 		k[idx] = name
 		for (i = 1; i <= n; i++)
@@ -1715,8 +1713,6 @@ EOF
 			if (name == "") name = gid
 			gid2name_cache[gid] = name
 		}
-		if (!output_json && length(name) > vsz)
-			name = substr(name, 1, vsz)
 		ret = ""
 		k[idx] = name
 		for (i = 1; i <= n; i++)
@@ -2179,11 +2175,15 @@ EOF
 		} else if (show_bytes) {
 			# ST: VIEWDATA
 			if (curview == "pid") {
+				if (length(user) > vsz)
+					user = substr(user, 1, vsz)
 				buffer_add3(fstype, cred, user, comm,
 					humanize(cred_rw),
 					humanize(cred_read), read_bar,
 					write_bar, humanize(cred_write))
 			} else {
+				if (length(cred) > vsz)
+					cred = substr(cred, 1, vsz)
 				buffer_add1(fstype, cred, humanize(cred_rw),
 					humanize(cred_read), read_bar,
 					write_bar, humanize(cred_write))
@@ -2191,11 +2191,15 @@ EOF
 		} else {
 			# ST: VIEWDATA
 			if (curview == "pid") {
+				if (length(user) > vsz)
+					user = substr(user, 1, vsz)
 				buffer_add3(fstype, cred, user, comm,
 					humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))
 			} else {
+				if (length(cred) > vsz)
+					cred = substr(cred, 1, vsz)
 				buffer_add1(fstype, cred, humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))

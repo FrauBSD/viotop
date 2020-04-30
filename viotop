@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-30 16:31:00 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-30 16:40:09 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -36,7 +36,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.0 $'
+VERSION='$Version: 6.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -503,12 +503,6 @@ fi
 #
 {
 	exec 3<&1
-
-	#
-	# Enable job control so we can bring bpftrace back to foreground
-	# NB: Otherwise Ctrl-C does not function as expected
-	#
-	set -m
 
 	#
 	# Find matching processes and their children
@@ -1452,9 +1446,6 @@ EOF
 	#
 	# Bring bpftrace child back to the foreground
 	#
-	exec 9<&1 # Save a copy of stdout
-	exec > /dev/null # make below fg silent (no effect on job stdout)
-	fg %1
 	wait $pid > /dev/null 2>&1 # Collect exit status
 	echo EXIT:$? >&9 # Send status to post-processor
 

@@ -4,7 +4,31 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-24 18:13:05 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-30 15:56:54 -0700 freebsdfrau $
+#
+############################################################ INFORMATION
+#
+# In viotop, a ``view'' is the user's choice between -c, -p, -g, -s, -t, or -u.
+# For example, `-u' asks viotop to display the ``user view'' where statistics
+# displayed are on a per-user basis.
+#
+# The code is broken down into:
+# 	- View selection (user choice)
+# 	- Filter selection (user choice)
+# 	- Inspection of running system
+# 	- bpftrace and bpftool execution
+# 	- awk to process bpftrace output
+#
+# Code navigating Search Terms/ST:
+# 	BPFTRACE	Start of bpftrace
+# 	FILTERS		Data filters
+# 	JSONDATA	JSON data generation
+# 	OPS		Data operations (read vs write)
+# 	POST		bpftrace post-processor (awk)
+# 	SUBTOTALS	Subtotal generation
+# 	TRACEDATA	bpftrace data generation and processing
+# 	VIEWDATA	View data generation
+# 	VIEWS		View processing
 #
 ############################################################ DEFAULTS
 
@@ -12,7 +36,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 5.1 $'
+VERSION='$Version: 5.1.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -347,7 +371,7 @@ esac
 #
 [ "$VIEW" ] || VIEW=PID VIEW_PID=1
 if [ ! "$OUTPUT_JSON" ]; then
-	case "$VIEW" in # VIEWS
+	case "$VIEW" in # ST: VIEWS
 	COMM) VIEW_GROUP= VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
 	GROUP) VIEW_COMM= VIEW_PID= VIEW_TYPE= VIEW_USER= ;;
 	PID) VIEW_COMM= VIEW_GROUP= VIEW_TYPE= VIEW_USER= ;;
@@ -725,7 +749,7 @@ fi
 			if (!matched) next
 
 			#
-			# FILTERS
+			# ST: FILTERS
 			#
 
 			# follow filter
@@ -782,7 +806,7 @@ fi
 
 	#
 	# Generate conditions
-	# FILTERS
+	# ST: FILTERS
 	#
 	condition=
 	if [ "$FILTER_COMM" ]; then
@@ -816,6 +840,7 @@ fi
 	#
 	# Start background bpftrace
 	# NB: M-x package-install [RET] dtrace-script-mode [RET]
+	# ST: BPFTRACE
 	#
 	run_bpftrace <<EOF &
 	${DEBUG:+#!/usr/bin/bpftrace}
@@ -1096,7 +1121,7 @@ done )
 
 		if (\$ret > 0)
 		{
-			// VIEWS
+			// ST: VIEWS TRACEDATA
 ${VIEW_COMM:+"
 			@rd_comm[\$fstype, comm] = sum(\$count);
 "}
@@ -1148,7 +1173,7 @@ ${VIEW_USER:+"
 
 		if (\$ret > 0)
 		{
-			// VIEWS
+			// ST: VIEWS TRACEDATA
 ${VIEW_COMM:+"
 			@wr_comm[\$fstype, comm] = sum(\$count);
 "}
@@ -1173,7 +1198,7 @@ ${VIEW_USER:+"
 	{
 		printf("===\n");
 
-		// VIEWS
+		// ST: VIEWS
 ${VIEW_COMM:+
 		print(@rd_comm);
 		print(@wr_comm);
@@ -1216,7 +1241,7 @@ ${VIEW_USER:+
 ${FILTER_FOLLOW:+
 		clear(@follow);
 }
-		// VIEWS
+		// ST: VIEWS
 ${VIEW_COMM:+
 		clear(@rd_comm);
 		clear(@wr_comm);
@@ -1425,6 +1450,8 @@ EOF
 	-v wide_view=${WIDE_VIEW:-0} \
 	'####################################### BEGIN
 
+	# ST: POST
+
 	BEGIN {
 		debug2("Terminal size (rows, cols) = (%d, %d)", rows, cols)
 
@@ -1453,6 +1480,7 @@ EOF
 
 		#
 		# Calculate columns and column widths
+		# ST: VIEWS
 		#
 		# NB: bar_size = size of bar column (if shown)
 		# NB: dsz = size of TOTAL, READ(IN), WRITE(OUT) data columns
@@ -1513,10 +1541,10 @@ EOF
 			}
 			if (view == "PID") {
 				bar_size -= 5 + 1 # %5s PID + space
-				bar_size -= vsz + 1 # %-8s USER + space
+				bar_size -= vsz + 1 # %-*s USER + space
 				bar_size -= 15 + 1 # %-15s COMM + space
 			} else {
-				bar_size -= vsz + 1 # VIEW + space
+				bar_size -= vsz + 1 # %[-]*s VIEW + space
 			}
 			bar_size -= dsz + 1 # TOTAL + space
 			bar_size -= dsz + 1 # READ(IN) + space
@@ -1529,6 +1557,7 @@ EOF
 
 		#
 		# Calculate format and line width
+		# ST: VIEWS
 		#
 		fmt = ""
 		fmtsz = 0
@@ -1628,7 +1657,7 @@ EOF
 
 	function clear_data()
 	{
-		# VIEWS
+		# ST: VIEWS
 		delete comm_keys
 		delete group_keys
 		delete pid_keys
@@ -1712,6 +1741,7 @@ EOF
 		prefix = "\033[7;1m"
 		suffix = "\033[27;22m"
 		empty_bar = ""
+		# ST: VIEWS
 		if (view == "PID") {
 			buffer_add3("VFS", view, "USER", "COMM", "TOTAL",
 				"READ(IN)", empty_bar, empty_bar, "WRITE(OUT)",
@@ -1726,7 +1756,7 @@ EOF
 	function load_keys(map_view,        map_key)
 	{
 		delete _keys
-		# VIEWS
+		# ST: VIEWS
 		if (map_view == "comm") for (map_key in comm_keys)
 			_keys[map_key] = comm_keys[map_key]
 		else if (map_view == "group") for (map_key in group_keys)
@@ -1741,6 +1771,7 @@ EOF
 
 	function parse_map()
 	{
+		# ST: TRACEDATA
 		if (!match($0, /^@[^\[]*\[/)) return 0
 		map_name = substr($0, RSTART + 1, RLENGTH - 2)
 		map_view = substr(map_name, 4)
@@ -1751,6 +1782,10 @@ EOF
 		nkeys = split(map_key, map_keys, /, /)
 		map_value = $NF
 
+		#
+		# ST: SUBTOTALS
+		#
+
 		map_skey = ""
 		if (show_aggregates) {
 			map_skey = "*"
@@ -1758,12 +1793,15 @@ EOF
 				map_skey = map_skey ", " map_keys[n]
 		}
 
+		#
+		# ST: VIEWS
+		#
+
 		if (!(map_view in map_views)) {
 			map_views[map_view]
 			view_list[++nviews] = map_view
 		}
 
-		# VIEWS
 		if (map_view == "comm") {
 			comm_keys[map_key]
 			if (map_skey != "") comm_keys[map_skey]
@@ -1780,6 +1818,10 @@ EOF
 			user_keys[map_key]
 			if (map_skey != "") user_keys[map_skey]
 		}
+
+		#
+		# ST: OPS
+		#
 
 		if (map_op == "rd") {
 			map_view_read[map_view] += map_value
@@ -1908,6 +1950,7 @@ EOF
 				"write_rate", write_rate)
 			buffer_add("{" json_out "}\n")
 		} else if (show_bytes) {
+			# ST: VIEWS
 			if (view == "PID") {
 				buffer_add3("*", "total", "*", "*",
 					humanize(rw_total),
@@ -1920,6 +1963,7 @@ EOF
 					write_bar, humanize(write_total))
 			}
 		} else {
+			# ST: VIEWS
 			if (view == "PID") {
 				buffer_add3("*", "total", "*", "*",
 					humanize(rw_rate),
@@ -2019,6 +2063,7 @@ EOF
 
 		rw_rate = cred_rw / time_delta
 		if (curview != "type") {
+			# ST: TRACEDATA
 			split(cred, key, /, /)
 			fstype = key[1]
 			cred = key[2]
@@ -2028,6 +2073,7 @@ EOF
 			}
 		}
 		if (output_json) {
+			# ST: JSONDATA
 			json_out = ""
 			json_out = json_add_uint(json_out, "time", tm)
 			json_out = json_add_str(json_out, "ident", curview)
@@ -2060,6 +2106,7 @@ EOF
 				"write_rate", write_rate)
 			buffer_add("{" json_out "}\n")
 		} else if (show_bytes) {
+			# ST: VIEWDATA
 			if (curview == "pid") {
 				buffer_add3(fstype, cred, user, comm,
 					humanize(cred_rw),
@@ -2071,6 +2118,7 @@ EOF
 					write_bar, humanize(cred_write))
 			}
 		} else {
+			# ST: VIEWDATA
 			if (curview == "pid") {
 				buffer_add3(fstype, cred, user, comm,
 					humanize(rw_rate),

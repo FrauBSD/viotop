@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 5.2
+Version: 6.0
 Release: 1
 Buildarch: noarch
 
@@ -24,6 +24,7 @@ Requires: /bin/sh
 Requires: bpftool
 Requires: bpftrace
 Requires: lsof
+Requires: psmisc
 
 ############################################################ DESCRIPTION
 
@@ -77,6 +78,9 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.0-1
+- 9588a33 Add color output and -C to force
+- Add psmisc RPM requirement for pstree use introduced in a8a6140
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 5.2-1
 - 54bd649 Remove unused -s option from MAIN getopts
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 5.1.1-1

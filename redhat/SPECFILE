@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 6.1.1
+Version: 6.2
 Release: 1
 Buildarch: noarch
 
@@ -78,6 +78,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.2-1
+- d275d01 Flush output, fix pipe to cat(1)
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.1.1-1
 - d8b2639 Alphabetize view clear() statements NFC
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.1-1

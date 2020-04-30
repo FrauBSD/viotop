@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 6.0
+Version: 6.1
 Release: 1
 Buildarch: noarch
 
@@ -78,6 +78,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.1-1
+- 26db002 Fix handling of Ctrl-Z
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.0-1
 - 9588a33 Add color output and -C to force
 - Add psmisc RPM requirement for pstree use introduced in a8a6140

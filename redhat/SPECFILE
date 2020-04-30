@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 6.1
+Version: 6.1.1
 Release: 1
 Buildarch: noarch
 
@@ -78,6 +78,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.1.1-1
+- d8b2639 Alphabetize view clear() statements NFC
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.1-1
 - 26db002 Fix handling of Ctrl-Z
 * Thu Apr 30 2020 Devin Teske <dteske@fraubsd.org> 6.0-1

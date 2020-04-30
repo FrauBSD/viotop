@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-30 16:16:29 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-30 16:31:00 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -36,7 +36,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 5.2 $'
+VERSION='$Version: 6.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -49,6 +49,7 @@ FAILURE=1
 #
 # Command-line options
 #
+COLOR=					# -C
 DEBUG=					# -d
 DEBUGGER=				# -D
 FILTER_FOLLOW=				# -f
@@ -75,6 +76,7 @@ WIDE_VIEW=				# -w
 #
 # Miscellaneous
 #
+CONS=1
 FILTER_COMM=
 FILTER_GID=
 FILTER_UID=
@@ -100,10 +102,17 @@ die()
 	exit $FAILURE
 }
 
-info()
+send_user()
 {
-	printf "info|%s\n" "$*"
+	local type="$1"
+	shift 1 # type
+	printf "%s|%s\n" "$type" "$*"
 }
+
+info() { send_user info "$*"; }
+info_n() { send_user info-n "$*"; }
+msg() { send_user msg "$*"; }
+warn() { send_user warn "$*"; }
 
 usage()
 {
@@ -122,6 +131,7 @@ usage()
 	printf "$optfmt" "-b" "Show bytes instead of bandwidth."
 	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-c" "View read/write activity by command name."
+	printf "$optfmt" "-C" "Always enable color."
 	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
 	printf "$optfmt" "-D" "Enable debugger."
 	printf "$optfmt" "-G group" "Group filter (name or id)."
@@ -314,11 +324,12 @@ bpf_map_ids()
 #
 # Process command-line options
 #
-while getopts AabcDdfG:ghIi:JjN:nP:prT:tU:uvw flag; do
+while getopts AabCcDdfG:ghIi:JjN:nP:prT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
 	b) SHOW_BYTES=1 ;;
+	C) COLOR=1 ;;
 	c) VIEW=COMM VIEW_COMM=1 ;;
 	D) DEBUGGER=1 RAW_VIEW=1 ;;
 	d) DEBUG=1 RAW_VIEW=1 ;;
@@ -378,6 +389,15 @@ if [ ! "$OUTPUT_JSON" ]; then
 	TYPE) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
 	USER) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
 	esac
+fi
+
+#
+# Process `-C' option
+#
+if [ "$COLOR" ]; then
+	CONS=1
+else
+	[ -t 1 ] || CONS= # stdout is not a tty
 fi
 
 #
@@ -651,10 +671,15 @@ fi
 			fflush()
 		}
 
-		function info(str)
+		function send_user(type, str)
 		{
-			emit(sprintf("info|%s", str))
+			emit(sprintf("%s|%s", type, str))
 		}
+
+		function info(str) { send_user("info", str) }
+		function info_n(str) { send_user("info-n", str) }
+		function msg(str) { send_user("msg", str) }
+		function warn(str) { send_user("warn", str) }
 
 		function getcol(name,        start, width, val)
 		{
@@ -1434,6 +1459,7 @@ EOF
 	echo EXIT:$? >&9 # Send status to post-processor
 
 } | awk -v cols=$cols \
+	-v cons=${CONS:-0} \
 	-v debug=${DEBUG:-0} \
 	-v debugger=${DEBUGGER:-0} \
 	-v filter_type=${FILTER_TYPE:+1} \
@@ -1445,6 +1471,7 @@ EOF
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
 	-v show_bytes=${SHOW_BYTES:-0} \
+	-v stderr=/dev/stderr \
 	-v view="$VIEW" \
 	-v view_aggregates=${VIEW_AGGREGATES:-0} \
 	-v wide_view=${WIDE_VIEW:-0} \
@@ -1458,6 +1485,17 @@ EOF
 		exit_status = 0 # SUCCESS
 		time_delta = 0 # Calculated
 		samples_left = nsamples
+
+		inv	= "\033[7m"
+		noinv	= "\033[27m"
+		bold    = "\033[1m"
+		nobold  = "\033[22m"
+		red     = "\033[31m"
+		green   = "\033[32m"
+		yellow  = "\033[33m"
+		magenta = "\033[35m"
+		cyan    = "\033[36m"
+		fgreset = "\033[39m"
 
 		# Obtain awk pid
 		(cmd = "echo $PPID") | getline apid
@@ -1575,22 +1613,35 @@ EOF
 			fmtsz += 1 + vsz
 		}
 		fmt = fmt " %" dsz "s" # TOTAL column
-		fmt = fmt " %" dsz "s" # READ(IN) column
+		if (cons) {
+			fmt = fmt " " cyan "%" dsz "s" # READ(IN) column
+		} else {
+			fmt = fmt " %" dsz "s" # READ(IN) column
+		}
 		fmtsz += 1 + dsz + 1 + dsz
 		if (show_bar_column) {
 			full_bar = bar_size
 			bar_size = int(bar_size / 2)
 			if (bar_size * 2 == full_bar) bar_size--
-			fmt = fmt " %*s|%-*s"
+			fmt = fmt " %*s" # read_bar
+			if (cons) {
+				fmt = fmt fgreset "|" red "%-*s" # write_bar
+			} else {
+				fmt = fmt "|%-*s" # write_bar
+			}
 			fmtsz += 1 + bar_size + 1 + bar_size
 			fmt = fmt " %-" dsz "s" # WRITE(OUT) column
+			fmtsz += 1 + dsz
+		} else if (cons) {
+			fmt = fmt " " red "%" dsz "s" # WRITE(OUT) column
 			fmtsz += 1 + dsz
 		} else {
 			fmt = fmt " %" dsz "s" # WRITE(OUT) column
 			fmtsz += 1 + dsz
 		}
-		fmt = substr(fmt, 2) "\n" # Trim leading space, append \n
+		fmt = substr(fmt, 2) # Trim leading space
 		fmtsz -= 1
+		fmt = fmt (cons ? fgreset : "") "\n"
 
 		if (!raw_view) {
 			clear_buffer()
@@ -1610,6 +1661,33 @@ EOF
 	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
 	function buffer_add(text) { BUFFER = BUFFER text }
 	function print_buffer() { printf "%s", BUFFER }
+
+	function info(str)
+	{
+		printf "%sINFO%s %s\n",
+			cons ? magenta : "", cons ? fgreset : "", str > stderr
+		fflush(stderr)
+	}
+
+	function info_n(str)
+	{
+		printf "%sINFO%s %s",
+			cons ? magenta : "", cons ? fgreset : "", str > stderr
+		fflush(stderr)
+	}
+
+	function msg(str)
+	{
+		print $0 > stderr
+		fflush(stderr)
+	}
+
+	function warn(str)
+	{
+		printf "%sWARNING%s %s\n", cons ? yellow bold : "",
+			cons ? fgreset nobold : "", str > stderr
+		fflush(stderr)
+	}
 
 	function uid2name(uid,        cmd, id, idf, name, n, k, idx, i, ret)
 	{
@@ -1738,8 +1816,8 @@ EOF
 				#  9 = "Interval:"
 				#  2 = number of spaces
 				# 31 = %31s date
-		prefix = "\033[7;1m"
-		suffix = "\033[27;22m"
+		prefix = cons ? inv green : inv bold
+		suffix = cons ? fgreset noinv : noinv nobold
 		empty_bar = ""
 		# ST: VIEWS
 		if (view == "PID") {
@@ -2001,7 +2079,9 @@ EOF
 			r += process_cred(curview, cred,
 				read_total, write_total)
 		}
-		if (i > 0) buffer_add(sprintf("(%d more) ... ", i))
+		if (i > 0) buffer_add(sprintf("%s(%d more) ... %s",
+			cons ? inv bold yellow : "", i,
+			cons ? noinv nobold fgreset : ""))
 	}
 
 	function process_cred(curview, cred, read_total, write_total,
@@ -2155,15 +2235,24 @@ EOF
 		next
 	}
 
-	sub(/^info\|/, "") {
-		if (!output_json) print
-		next
+	{ call = "" }
+
+	match($0, /^[_a-z]+(-[_a-z]+)?\|/) {
+		call = substr($0, 1, RLENGTH - 1)
+		$0 = substr($0, RSTART + RLENGTH)
 	}
 
-	sub(/^time\|/, "") {
+	call == "info" { if (!output_json) info($0) }
+	call == "info-n" { if (!output_json) info_n($0) }
+	call == "msg" { if (!output_json) msg($0) }
+	call == "warn" { warn($0) }
+
+	call == "time" {
 		times[1] = times[2]
 		times[2] = $0
 	}
+
+	call != "" { next }
 
 	/^@/ { parse_map() }
 

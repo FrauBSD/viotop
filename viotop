@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 11:13:51 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 12:13:05 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.4 $'
+VERSION='$Version: 6.3.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1641,6 +1641,7 @@ EOF
 		fmt = fmt (cons ? fgreset : "") "\n"
 
 		if (!raw_view) {
+			clear_data()
 			clear_buffer()
 			if (!output_json) print_buffer()
 		}
@@ -1746,8 +1747,6 @@ EOF
 
 	function clear_buffer()
 	{
-		clear_data()
-
 		BUFFER = ""
 		if (output_json) return
 		if (!debugger)
@@ -2239,6 +2238,7 @@ EOF
 
 	/^===$/ { # Data start
 		read_total = write_total = 0
+		clear_data()
 		clear_buffer()
 		next
 	}

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 12:35:41 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 12:39:12 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.0 $'
+VERSION='$Version: 7.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1843,6 +1843,7 @@ EOF
 	function buffer_add_header(        prefix, suffix)
 	{
 		if (output_json) return
+		tm = systime()
 		buffer_add(sprintf("Interval: %-*s %31s\n",
 			fmtsz - 9 - 2 - 31,
 			sprintf("%.3f", interval) "s",

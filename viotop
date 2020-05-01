@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 10:45:59 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 11:02:58 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.2 $'
+VERSION='$Version: 6.3.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -102,18 +102,6 @@ die()
 	fi
 	exit $FAILURE
 }
-
-send_user()
-{
-	local type="$1"
-	shift 1 # type
-	printf "%s|%s\n" "$type" "$*"
-}
-
-info() { send_user info "$*"; }
-info_n() { send_user info-n "$*"; }
-msg() { send_user msg "$*"; }
-warn() { send_user warn "$*"; }
 
 usage()
 {
@@ -319,6 +307,22 @@ bpf_map_ids()
 
 	return $__res
 }
+
+#
+# ST: CALLS
+#
+
+send_user()
+{
+	local type="$1"
+	shift 1 # type
+	printf "%s|%s\n" "$type" "$*"
+}
+
+info() { send_user info "$*"; }
+info_n() { send_user info-n "$*"; }
+msg() { send_user msg "$*"; }
+warn() { send_user warn "$*"; }
 
 ############################################################ MAIN
 
@@ -2239,26 +2243,7 @@ EOF
 		next
 	}
 
-	{ call = "" }
-
-	match($0, /^[_a-z]+(-[_a-z]+)?\|/) {
-		call = substr($0, 1, RLENGTH - 1)
-		$0 = substr($0, RSTART + RLENGTH)
-	}
-
-	call == "info" { if (!output_json) info($0) }
-	call == "info-n" { if (!output_json) info_n($0) }
-	call == "msg" { if (!output_json) msg($0) }
-	call == "warn" { warn($0) }
-
-	call == "time" {
-		times[1] = times[2]
-		times[2] = $0
-	}
-
-	call != "" { next }
-
-	/^@/ { parse_map() } # Data
+	/^@/ { parse_map(); next } # Data
 
 	/^---$/ { # Data end
 		tm = systime()
@@ -2275,6 +2260,28 @@ EOF
 		print_buffer()
 		clear_data()
 		sample_check() # Exit if no more samples desired
+		next
+	}
+
+	#
+	# ST: CALLS
+	#
+
+	{ call = "" }
+
+	match($0, /^[_a-z]+(-[_a-z]+)?\|/) {
+		call = substr($0, 1, RLENGTH - 1)
+		$0 = substr($0, RSTART + RLENGTH)
+	}
+
+	call == "info" { if (!output_json) info($0) }
+	call == "info-n" { if (!output_json) info_n($0) }
+	call == "msg" { if (!output_json) msg($0) }
+	call == "warn" { warn($0) }
+
+	call == "time" {
+		times[1] = times[2]
+		times[2] = $0
 	}
 
 	################################################## END

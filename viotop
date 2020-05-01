@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 12:29:01 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 12:35:41 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.8 $'
+VERSION='$Version: 7.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -167,7 +167,7 @@ run_bpftrace()
 		return
 	fi
 
-	exec bpftrace -B none /dev/stdin "$@"
+	bpftrace -B none /dev/stdin "$@"
 }
 
 count()
@@ -323,6 +323,12 @@ info() { send_user info "$*"; }
 info_n() { send_user info-n "$*"; }
 msg() { send_user msg "$*"; }
 warn() { send_user warn "$*"; }
+
+resize()
+{
+	eval "$( command resize 2> /dev/null )" &&
+		send_user resize "$LINES $COLUMNS"
+}
 
 ############################################################ MAIN
 
@@ -1319,8 +1325,17 @@ EOF
 	if [ "$OPEN_FDS$FOLLOW_PIDS" -a ! "$DEBUG" ]; then
 		info "Waiting for bpftrace to initialize..."
 		while kill -0 $pid 2> /dev/null; do
+			bpid=$( pgrep -P $pid bpftrace ) && break
+			sleep 1
+		done
+		if ! kill -0 $pid 2> /dev/null; then
+			wait $pid > /dev/null 2>&1 # Collect exit status
+			echo EXIT:$? # Send status to post-processor
+			exit
+		fi
+		while kill -0 $bpid 2> /dev/null; do
 			if [ ! "$prog_id" ]; then
-				bpf_prog_id $pid BEGIN prog_id
+				bpf_prog_id $bpid BEGIN prog_id
 				if [ "$prog_id" ]; then
 					bpf_map_ids $prog_id map_ids
 					[ "$map_ids" ] && break
@@ -1431,7 +1446,7 @@ EOF
 		' | bpftool batch file /dev/stdin > /dev/null
 		count -s cnt $OPEN_FDS
 		info "Loaded $cnt fds into bpftrace map" \
-			"(pid $pid, prog $prog_id, map $MAP_ID_TRACE)"
+			"(pid $bpid, prog $prog_id, map $MAP_ID_TRACE)"
 	fi
 
 	#
@@ -1446,14 +1461,18 @@ EOF
 				key $map_key value $map_value
 		done | bpftool batch file /dev/stdin > /dev/null
 		info "Loaded $cnt pids into bpftrace map" \
-			"(pid $pid, prog $prog_id, map $MAP_ID_FOLLOW)"
+			"(pid $bpid, prog $prog_id, map $MAP_ID_FOLLOW)"
 	fi
 
 	#
 	# Bring bpftrace child back to the foreground
 	#
-	wait $pid > /dev/null 2>&1 # Collect exit status
-	echo EXIT:$? >&9 # Send status to post-processor
+	status_collected=
+	while kill -0 $bpid > /dev/null 2>&1; do
+		wait > /dev/null 2>&1 # Collect exit status
+		[ "$status_collected" ] || status_collected=$?
+	done
+	echo EXIT:$status_collected # Send status to post-processor
 
 } | awk -v cols=$cols \
 	-v cons=${CONS:-0} \
@@ -1504,13 +1523,16 @@ EOF
 		split(stat, st)
 		spid = st[4]
 
+		# Obtain parent process (sh) name
+		getline stat < (file = sprintf("/proc/%d/stat", spid))
+		close(file)
+		split(stat, st)
+		comm = st[2]
+		if (match(comm, /^\(.*\)$/))
+			comm = substr(comm, 2, length(comm) - 2)
+
 		# Obtain child (sh) pid
 		(cmd = sprintf("pgrep -P %d %s", spid, comm)) | getline cpid
-		close(cmd)
-
-		# Obtain bpftrace pid
-		cmd = sprintf("pgrep -P %d bpftrace", cpid)
-		cmd | getline bpid
 		close(cmd)
 
 		if (!raw_view) {
@@ -1525,6 +1547,17 @@ EOF
 	}
 
 	######################################## FUNCTIONS
+
+	function bpftrace_init()
+	{
+		# Obtain handler (sh) pid
+		(cmd = sprintf("pgrep -P %d %s", cpid, comm)) | getline wpid
+
+		# Obtain bpftrace pid
+		cmd = sprintf("pgrep -P %d bpftrace", wpid)
+		cmd | getline bpid
+		close(cmd)
+	}
 
 	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
 	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
@@ -2288,8 +2321,16 @@ EOF
 
 	call == "info" { if (!output_json) info($0) }
 	call == "info-n" { if (!output_json) info_n($0) }
+	call == "init" { bpftrace_init() }
 	call == "msg" { if (!output_json) msg($0) }
 	call == "warn" { warn($0) }
+
+	call == "resize" {
+		if (output_json) next
+		rows = $1
+		cols = $2
+		resize()
+	}
 
 	call == "time" {
 		times[1] = times[2]

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-30 17:05:28 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 10:45:59 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -25,6 +25,7 @@
 # 	JSONDATA	JSON data generation
 # 	OPS		Data operations (read vs write)
 # 	POST		bpftrace post-processor (awk)
+# 	PRE		Start of pre-processor (sh)
 # 	SUBTOTALS	Subtotal generation
 # 	TRACEDATA	bpftrace data generation and processing
 # 	VIEWDATA	View data generation
@@ -36,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.1 $'
+VERSION='$Version: 6.3.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -500,6 +501,7 @@ fi
 
 #
 # Run script
+# ST: PRE
 #
 {
 	exec 3<&1
@@ -1488,17 +1490,17 @@ EOF
 		cyan    = "\033[36m"
 		fgreset = "\033[39m"
 
-		# Obtain awk pid
+		# Obtain current process (awk) pid
 		(cmd = "echo $PPID") | getline apid
 		close(cmd)
 
-		# Obtain sh pid
+		# Obtain parent process (sh) pid
 		getline stat < (file = sprintf("/proc/%d/stat", apid))
 		close(file)
 		split(stat, st)
 		spid = st[4]
 
-		# Obtain child pid
+		# Obtain child (sh) pid
 		(cmd = sprintf("pgrep -P %d %s", spid, comm)) | getline cpid
 		close(cmd)
 
@@ -2226,7 +2228,11 @@ EOF
 		if (!debugger) next
 	}
 
-	/^===$/ {
+	#
+	# ST: TRACEDATA
+	#
+
+	/^===$/ { # Data start
 		read_total = write_total = 0
 		clear_buffer()
 		buffer_add_header()
@@ -2252,9 +2258,9 @@ EOF
 
 	call != "" { next }
 
-	/^@/ { parse_map() }
+	/^@/ { parse_map() } # Data
 
-	/^---$/ {
+	/^---$/ { # Data end
 		tm = systime()
 
 		#

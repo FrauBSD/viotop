@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 13:11:58 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 16:09:01 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.2.1 $'
+VERSION='$Version: 7.2.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1617,7 +1617,7 @@ EOF
 		if (view == "TYPE" || filter_type || view_aggregates)
 			show_vfs_column = 0
 		if (view == "PID") {
-			vsz_fixed = show_bytes ? 16 : 10 # USER column
+			vsz_fixed = show_bytes ? 15 : 9 # USER column
 			if (cols > 91) {
 				bar_size_fixed = cols <= 101 ? 11 : 21
 			} else {
@@ -1638,7 +1638,7 @@ EOF
 				vsz -= 8 + 1 # %-8s VFS + space
 			}
 			if (view == "PID") {
-				vsz -= 5 + 1 # %5s PID + space
+				vsz -= 6 + 1 # %6s PID + space
 				vsz -= 0 + 1 # %-*s USER + space
 				vsz -= 15 + 1 # %-15s COMM + space
 			} else {
@@ -1660,7 +1660,7 @@ EOF
 				bar_size -= 8 + 1 # %-8s VFS + space
 			}
 			if (view == "PID") {
-				bar_size -= 5 + 1 # %5s PID + space
+				bar_size -= 6 + 1 # %6s PID + space
 				bar_size -= vsz + 1 # %-*s USER + space
 				bar_size -= 15 + 1 # %-15s COMM + space
 			} else {
@@ -1686,10 +1686,10 @@ EOF
 			fmtsz += 1 + 8
 		}
 		if (view == "PID") {
-			fmt = fmt " %5s" # PID column
+			fmt = fmt " %6s" # PID column
 			fmt = fmt " %-" vsz "s" # USER column
 			fmt = fmt " %-15s" # COMM column
-			fmtsz += 1 + 5 + 1 + vsz + 1 + 15
+			fmtsz += 1 + 6 + 1 + vsz + 1 + 15
 		} else {
 			fmt = fmt " %-" vsz "s" # VIEW column
 			fmtsz += 1 + vsz

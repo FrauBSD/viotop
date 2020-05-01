@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 12:16:51 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 12:23:52 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.6 $'
+VERSION='$Version: 6.3.7 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1513,6 +1513,55 @@ EOF
 		cmd | getline bpid
 		close(cmd)
 
+		if (!raw_view) {
+			clear_data()
+			resize()
+		}
+
+		# Declare arrays
+		delete times
+		delete uid2name_cache
+		delete gid2name_cache
+	}
+
+	######################################## FUNCTIONS
+
+	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
+	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
+	function buffer_add(text) { BUFFER = BUFFER text }
+	function print_buffer() { printf "%s", BUFFER; fflush() }
+
+	function info(str)
+	{
+		printf "%sINFO%s %s\n",
+			cons ? magenta : "", cons ? fgreset : "", str > stderr
+		fflush(stderr)
+	}
+
+	function info_n(str)
+	{
+		printf "%sINFO%s %s",
+			cons ? magenta : "", cons ? fgreset : "", str > stderr
+		fflush(stderr)
+	}
+
+	function msg(str)
+	{
+		print $0 > stderr
+		fflush(stderr)
+	}
+
+	function warn(str)
+	{
+		printf "%sWARNING%s %s\n", cons ? yellow bold : "",
+			cons ? fgreset nobold : "", str > stderr
+		fflush(stderr)
+	}
+
+	function resize()
+	{
+		if (output_json) return
+
 		#
 		# Calculate columns and column widths
 		# ST: VIEWS
@@ -1640,50 +1689,8 @@ EOF
 		fmtsz -= 1
 		fmt = fmt (cons ? fgreset : "") "\n"
 
-		if (!raw_view) {
-			clear_data()
-			clear_buffer()
-			if (!output_json) print_buffer()
-		}
-
-		# Declare arrays
-		delete times
-		delete uid2name_cache
-		delete gid2name_cache
-	}
-
-	######################################## FUNCTIONS
-
-	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
-	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
-	function buffer_add(text) { BUFFER = BUFFER text }
-	function print_buffer() { printf "%s", BUFFER; fflush() }
-
-	function info(str)
-	{
-		printf "%sINFO%s %s\n",
-			cons ? magenta : "", cons ? fgreset : "", str > stderr
-		fflush(stderr)
-	}
-
-	function info_n(str)
-	{
-		printf "%sINFO%s %s",
-			cons ? magenta : "", cons ? fgreset : "", str > stderr
-		fflush(stderr)
-	}
-
-	function msg(str)
-	{
-		print $0 > stderr
-		fflush(stderr)
-	}
-
-	function warn(str)
-	{
-		printf "%sWARNING%s %s\n", cons ? yellow bold : "",
-			cons ? fgreset nobold : "", str > stderr
-		fflush(stderr)
+		clear_buffer()
+		print_buffer()
 	}
 
 	function uid2name(uid,        cmd, id, idf, name, n, k, idx, i, ret)

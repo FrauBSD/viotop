@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 12:23:52 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 12:29:01 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.7 $'
+VERSION='$Version: 6.3.8 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1690,6 +1690,7 @@ EOF
 		fmt = fmt (cons ? fgreset : "") "\n"
 
 		clear_buffer()
+		buffer_add_data()
 		print_buffer()
 	}
 
@@ -1829,6 +1830,17 @@ EOF
 				"TOTAL", "READ(IN)", empty_bar, empty_bar,
 				"WRITE(OUT)", prefix, suffix)
 		}
+	}
+
+	function buffer_add_data()
+	{
+		tm = systime()
+
+		#
+		# Process each requested view
+		#
+		for (v = 1; v <= nviews; v++)
+			process_view(view_list[v])
 	}
 
 	function load_keys(map_view,        map_key)
@@ -2253,13 +2265,7 @@ EOF
 	/^@/ { parse_map(); next } # Data
 
 	/^---$/ { # Data end
-		tm = systime()
-
-		#
-		# Process each requested view
-		#
-		for (v = 1; v <= nviews; v++)
-			process_view(view_list[v])
+		buffer_add_data()
 
 		#
 		# Dump information

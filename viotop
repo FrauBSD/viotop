@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 12:13:05 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 12:16:51 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.5 $'
+VERSION='$Version: 6.3.6 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2258,7 +2258,6 @@ EOF
 		# Dump information
 		#
 		print_buffer()
-		clear_data()
 		sample_check() # Exit if no more samples desired
 		next
 	}

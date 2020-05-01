@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 7.0
+Version: 7.1
 Release: 1
 Buildarch: noarch
 
@@ -78,6 +78,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 7.1-1
+- c38d5c7 Update clock on resize
 * Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 7.0-1
 - fae3de1 Add live terminal resizing
 * Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 6.3.8-1

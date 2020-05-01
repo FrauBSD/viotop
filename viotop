@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 11:02:58 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-01 11:13:51 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3.3 $'
+VERSION='$Version: 6.3.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1642,7 +1642,6 @@ EOF
 
 		if (!raw_view) {
 			clear_buffer()
-			buffer_add_header()
 			if (!output_json) print_buffer()
 		}
 
@@ -1750,8 +1749,10 @@ EOF
 		clear_data()
 
 		BUFFER = ""
-		if (!output_json && !debugger)
+		if (output_json) return
+		if (!debugger)
 			buffer_add(sprintf("\033[H\033[J"))
+		buffer_add_header()
 	}
 
 	function buffer_add1(vfs, arg1, total, read, read_bar, write_bar,
@@ -2239,7 +2240,6 @@ EOF
 	/^===$/ { # Data start
 		read_total = write_total = 0
 		clear_buffer()
-		buffer_add_header()
 		next
 	}
 

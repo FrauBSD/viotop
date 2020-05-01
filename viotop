@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-04-30 16:56:54 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-04-30 17:05:28 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -36,7 +36,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 6.3 $'
+VERSION='$Version: 6.3.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2147,17 +2147,20 @@ EOF
 			if (curview == "type") {
 				json_out = json_add_str(json_out,
 					curview, cred)
+			} else if (curview == "pid") {
+				json_out = json_add_str(json_out,
+					curview, cred)
+				json_out = json_add_str(json_out,
+					"fstype", fstype)
+				json_out = json_add_str(json_out,
+					"user", user)
+				json_out = json_add_str(json_out,
+					"comm", comm)
 			} else {
 				json_out = json_add_str(json_out,
 					curview, cred)
 				json_out = json_add_str(json_out,
 					"fstype", fstype)
-				if (curview == "pid" ) {
-					json_out = json_add_str(json_out,
-						"user", user)
-					json_out = json_add_str(json_out,
-						"comm", comm)
-				}
 			}
 			json_out = json_add_uint(json_out,
 				"total_bytes", cred_rw)

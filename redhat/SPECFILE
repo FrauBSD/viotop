@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 7.2.2
+Version: 7.2.4
 Release: 1
 Buildarch: noarch
 
@@ -78,6 +78,9 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 7.2.4-1
+- 44f66b6 Tolerate missing /dev/tty (jails) and fix -I live resizing [7.2.4]
+- c54e010 Refactor collection of initial terminal size [7.2.3]
 * Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 7.2.2-1
 - cf55c2b Increase PID column width to 6 digits
 * Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 7.2.1-1

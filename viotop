@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-03 10:12:16 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-03 11:10:25 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.2.3 $'
+VERSION='$Version: 7.2.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -326,7 +326,12 @@ warn() { send_user warn "$*"; }
 
 resize()
 {
-	local size="$( stty size < /dev/tty 2> /dev/null )"
+	local size
+	if [ -e /dev/tty ]; then
+		size=$( stty size < /dev/tty 2> /dev/null )
+	else
+		size=$( stty size 2> /dev/null )
+	fi
 	send_user resize "${size:-24 80}"
 }
 
@@ -497,7 +502,8 @@ esac
 #
 # Get terminal size
 #
-size=$( stty size < /dev/tty 2> /dev/null )
+size=$( resize )
+size="${size#*|}"
 if [ "$size" ]; then
 	cols="${size#*[$IFS]}"
 	rows="${size%%[$IFS]*}"
@@ -1325,7 +1331,7 @@ EOF
 	#
 	# Identify child bpftrace
 	#
-	if [ "$OPEN_FDS$FOLLOW_PIDS" -a ! "$DEBUG" ]; then
+	if [ ! "$DEBUG" ]; then
 		info "Waiting for bpftrace to initialize..."
 		while kill -0 $pid 2> /dev/null; do
 			bpid=$( pgrep -P $pid bpftrace ) && break
@@ -1336,6 +1342,8 @@ EOF
 			echo EXIT:$? # Send status to post-processor
 			exit
 		fi
+	fi
+	if [ "$OPEN_FDS$FOLLOW_PIDS" -a ! "$DEBUG" ]; then
 		while kill -0 $bpid 2> /dev/null; do
 			if [ ! "$prog_id" ]; then
 				bpf_prog_id $bpid BEGIN prog_id

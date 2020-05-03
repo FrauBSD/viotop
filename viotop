@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-03 12:41:56 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-03 12:43:14 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.2.6 $'
+VERSION='$Version: 7.2.7 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1512,6 +1512,7 @@ EOF
 		exit_status = 0 # SUCCESS
 		time_delta = 0 # Calculated
 		samples_left = nsamples
+		srand() # seed clock
 
 		inv	= "\033[7m"
 		noinv	= "\033[27m"
@@ -1570,6 +1571,7 @@ EOF
 		close(cmd)
 	}
 
+	function _systime() { return srand() }
 	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
 	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
 	function buffer_add(text) { BUFFER = BUFFER text }
@@ -1854,11 +1856,10 @@ EOF
 	function buffer_add_header(        prefix, suffix)
 	{
 		if (output_json) return
-		tm = systime()
 		buffer_add(sprintf("Interval: %-*s %31s\n",
 			fmtsz - 9 - 2 - 31,
 			sprintf("%.3f", interval) "s",
-			strftime("%c", systime())))
+			strftime("%c", tm = _systime())))
 				#  9 = "Interval:"
 				#  2 = number of spaces
 				# 31 = %31s date
@@ -1879,7 +1880,7 @@ EOF
 
 	function buffer_add_data()
 	{
-		tm = systime()
+		tm = _systime()
 
 		#
 		# Process each requested view

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-01 16:09:01 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-03 10:12:16 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.2.2 $'
+VERSION='$Version: 7.2.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -497,17 +497,17 @@ esac
 #
 # Get terminal size
 #
-size=$( stty size 2> /dev/null )
+size=$( stty size < /dev/tty 2> /dev/null )
 if [ "$size" ]; then
 	cols="${size#*[$IFS]}"
 	rows="${size%%[$IFS]*}"
-	case "$rows$cols" in
-	*[!0-9]*)
-		cols=80
-		rows=24
-		;;
-	esac
 fi
+case "$rows$cols" in
+""|*[!0-9]*)
+	cols=80
+	rows=24
+	;;
+esac
 
 #
 # Run script

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-03 11:10:25 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-03 12:40:21 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.2.4 $'
+VERSION='$Version: 7.2.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1476,7 +1476,7 @@ EOF
 	fi
 
 	#
-	# Bring bpftrace child back to the foreground
+	# Wait on background (bpftrace) child
 	#
 	status_collected=
 	while kill -0 $bpid > /dev/null 2>&1; do

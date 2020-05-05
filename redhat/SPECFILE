@@ -10,7 +10,7 @@ Group: Applications/FrauBSD
 Summary: viotop
 License: BSD
 Version: 7.4
-Release: 1
+Release: 2
 Buildarch: noarch
 
 URL: https://www.fraubsd.org/viotop
@@ -21,6 +21,7 @@ BuildRoot: %{_tmppath}/src
 
 Requires: /bin/awk
 Requires: /bin/sh
+Requires: bc
 Requires: bpftool
 Requires: bpftrace
 Requires: lsof
@@ -78,6 +79,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Tue May  5 2020 Devin Teske <dteske@fraubsd.org> 7.4-2
+- Add bc requirement
 * Tue May  5 2020 Devin Teske <dteske@fraubsd.org> 7.4-1
 - ff29de8 Improve non-console output
 * Tue May  5 2020 Devin Teske <dteske@fraubsd.org> 7.3-1

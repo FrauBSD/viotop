@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-03 13:20:52 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-05 10:57:32 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.3 $'
+VERSION='$Version: 7.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1575,7 +1575,13 @@ EOF
 	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
 	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
 	function buffer_add(text) { BUFFER = BUFFER text }
-	function print_buffer() { printf "%s", BUFFER; fflush() }
+
+	function print_buffer()
+	{
+		if (!cons) buffer_add("\n")
+		printf "%s", BUFFER
+		fflush()
+	}
 
 	function info(str)
 	{
@@ -1735,9 +1741,11 @@ EOF
 		fmtsz -= 1
 		fmt = fmt (cons ? fgreset : "") "\n"
 
-		clear_buffer()
-		buffer_add_data()
-		print_buffer()
+		if (cons) {
+			clear_buffer()
+			buffer_add_data()
+			print_buffer()
+		}
 	}
 
 	function uid2name(uid,        cmd, id, idf, name, n, k, idx, i, ret)
@@ -1803,7 +1811,7 @@ EOF
 	{
 		BUFFER = ""
 		if (output_json) return
-		if (!debugger)
+		if (!debugger && cons)
 			buffer_add(sprintf("\033[H\033[J"))
 		buffer_add_header()
 	}
@@ -1863,8 +1871,8 @@ EOF
 				#  9 = "Interval:"
 				#  2 = number of spaces
 				# 31 = %31s date
-		prefix = cons ? inv green : inv bold
-		suffix = cons ? fgreset noinv : noinv nobold
+		prefix = cons ? inv green : ""
+		suffix = cons ? fgreset noinv : ""
 		empty_bar = ""
 		# ST: VIEWS
 		if (view == "PID") {
@@ -2042,6 +2050,7 @@ EOF
 				system(sprintf("kill %d > /dev/null 2>&1",
 					bpid))
 			}
+			if (more) printf "\n"
 			exit
 		}
 	}
@@ -2129,7 +2138,7 @@ EOF
 		#
 		r = 1
 		n = _asort(_keys, _keys_sorted)
-		table_rows = output_json ? n : rows - 4
+		table_rows = output_json || !cons ? n : rows - 4
 		for (i = n; i >= 1 && r <= table_rows; i--) {
 			debug2("r=[%d] table_rows=[%d]", r, table_rows)
 			cred = _keys_sorted[i]
@@ -2137,7 +2146,7 @@ EOF
 			r += process_cred(curview, cred,
 				read_total, write_total)
 		}
-		if (i > 0) buffer_add(sprintf("%s(%d more) ... %s",
+		if (more = i > 0) buffer_add(sprintf("%s(%d more) ... %s",
 			cons ? inv bold yellow : "", i,
 			cons ? noinv nobold fgreset : ""))
 	}

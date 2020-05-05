@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.2.9 $'
+VERSION='$Version: 7.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -119,10 +119,10 @@ usage()
 	printf "$optfmt" "-a" "Show aggregate subtotals."
 	printf "$optfmt" "-b" "Show bytes instead of bandwidth."
 	printf "$optfmt" "-A" "Only show aggregate subtotals."
-	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-C" "Always enable color."
-	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
+	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-D" "Enable debugger."
+	printf "$optfmt" "-d" "Debug. Print bpftrace script and exit."
 	printf "$optfmt" "-G group" "Group filter (name or id)."
 	printf "$optfmt" "-g" "View read/write activity by group."
 	printf "$optfmt" "-h" "Print usage statement and exit."

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-05 10:57:32 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-16 17:38:27 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.4 $'
+VERSION='$Version: 7.4.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -901,10 +901,10 @@ ${FILTER_FOLLOW:+
 		@follow[-1] = 1;
 		delete(@follow[-1]);
 }
+		time("time|%s\n");
 		printf("init|"); // Initialize post-processor
 		printf("===\n"); // Clear screen and draw header
 		printf("info|Sampling data for ${INTERVAL}s (\`-i sec')...\n");
-		time("time|%s\n");
 	}
 
 ${FILTER_FOLLOW:+"
@@ -1236,6 +1236,7 @@ ${VIEW_USER:+"
 
 	$INTERVAL_PROBE
 	{
+		time("time|%s\n");
 		printf("===\n");
 
 		// ST: VIEWS
@@ -1270,7 +1271,6 @@ ${VIEW_USER:+
 		clear(@wr_user);
 }
 
-		time("time|%s\n");
 		printf("---\n");
 	}
 
@@ -1499,6 +1499,7 @@ EOF
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
 	-v show_bytes=${SHOW_BYTES:-0} \
 	-v stderr=/dev/stderr \
+	-v tm=$( date +%s ) \
 	-v view="$VIEW" \
 	-v view_aggregates=${VIEW_AGGREGATES:-0} \
 	-v wide_view=${WIDE_VIEW:-0} \
@@ -1512,7 +1513,6 @@ EOF
 		exit_status = 0 # SUCCESS
 		time_delta = 0 # Calculated
 		samples_left = nsamples
-		srand() # seed clock
 
 		inv	= "\033[7m"
 		noinv	= "\033[27m"
@@ -1571,7 +1571,6 @@ EOF
 		close(cmd)
 	}
 
-	function _systime() { return srand() }
 	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
 	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
 	function buffer_add(text) { BUFFER = BUFFER text }
@@ -1867,7 +1866,7 @@ EOF
 		buffer_add(sprintf("Interval: %-*s %31s\n",
 			fmtsz - 9 - 2 - 31,
 			sprintf("%.3f", interval) "s",
-			strftime("%c", tm = _systime())))
+			strftime("%c", tm)))
 				#  9 = "Interval:"
 				#  2 = number of spaces
 				# 31 = %31s date
@@ -1888,8 +1887,6 @@ EOF
 
 	function buffer_add_data()
 	{
-		tm = _systime()
-
 		#
 		# Process each requested view
 		#
@@ -2356,7 +2353,7 @@ EOF
 
 	call == "time" {
 		times[1] = times[2]
-		times[2] = $0
+		times[2] = tm = $0
 	}
 
 	################################################## END

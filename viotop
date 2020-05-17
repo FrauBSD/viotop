@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-16 18:56:17 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-16 19:06:58 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 7.4.2 $'
+VERSION='$Version: 8.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1609,7 +1609,11 @@ EOF
 		fflush(stderr)
 	}
 
-	function resize()
+	function resize(        commsz, dsz, pidsz, vfssz, vsz,
+		bar_size_fixed, bar_size_fixed_max, bar_size_fixed_min,
+		bar_min1, bar_min2,
+		commsz_cols1, commsz_cols2, commsz_cols3,
+		vsz_cols1, vsz_cols2, vsz_max, vsz_min, wv)
 	{
 		if (output_json) return
 
@@ -1618,7 +1622,10 @@ EOF
 		# ST: VIEWS
 		#
 		# NB: bar_size = size of bar column (if shown)
+		# NB: commsz = size of COMM column
 		# NB: dsz = size of TOTAL, READ(IN), WRITE(OUT) data columns
+		# NB: pidsz = size of PID column
+		# NB: vfssz = size of VFS column
 		# NB: vsz = size of VIEW column ("view size")
 		#
 		# If given -w (wide view) make bar_size fixed-width and
@@ -1626,45 +1633,204 @@ EOF
 		#
 		# Without -w, make vsz fixed-width and bar_size variable.
 		#
-		dsz = show_bytes ? 10 : 12
-		show_vfs_column = 1
+
+		wv = wide_view
+
 		show_bar_column = 1
+		show_comm_column = 1
+		show_rw_columns = 1
+		show_user_column = 1
+		show_vfs_column = 1
+
+		vfssz = 8
+		pidsz = 6
+		vsz_min = length(view)
+		commsz = 15
+		commsz_min = length("COMM")
+		dsz = show_bytes ? 10 : 12
+		bar_size_fixed_max = 21
+		bar_size_fixed_min = 11
+
 		if (view == "TYPE" || filter_type || view_aggregates)
 			show_vfs_column = 0
+
 		if (view == "PID") {
-			vsz_fixed = show_bytes ? 15 : 9 # USER column
-			if (cols > 91) {
-				bar_size_fixed = cols <= 101 ? 11 : 21
+			vsz_max = 9
+			vsz_min = length("USER")
+
+			#
+			# Calculate minimum terminal width required (bar_min1)
+			# to display small bar (min_fixed_bar_size) and also
+			# minimum terminal width required (bar_min2) to display
+			# larger bar (max_fixed_bar_size).
+			#
+			bar_min1 = 0
+			if (show_vfs_column)
+				bar_min1 += vfssz + 1 # VFS + space
+			bar_min1 += pidsz + 1 # PID + space
+			bar_min1 += vsz_min + 1 # USER + space
+			commsz_cols1 = commsz_cols2 = commsz_cols3 = bar_min1
+			vsz_cols2 = bar_min1
+			bar_min1 += commsz + 1 # COMM + space
+			commsz_cols1 += commsz_min + 1 # COMM + space
+			commsz_cols2 += commsz + 1 # COMM + space
+			commsz_cols3 += commsz_min + 1 # COMM + space
+			bar_min1 += dsz + 1 # TOTAL + space
+			commsz_cols1 += dsz + 1 # TOTA/L + space
+			commsz_cols2 += dsz # TOTAL
+			commsz_cols3 += dsz # TOTAL
+			vsz_cols2 += dsz # TOTAL
+			bar_min1 += dsz + 1 # READ(IN) + space
+			commsz_cols1 += dsz + 1 # READ(IN) + space
+			vsz_cols1 = bar_min2 = bar_min1
+			bar_min1 += bar_size_fixed_min + 1 # small bar + space
+			bar_min2 += bar_size_fixed_max + 1 # bigger bar + space
+			bar_min1 += dsz # WRITE(OUT)
+			bar_min2 += dsz # WRITE(OUT)
+			vsz_cols1 += dsz # WRITE(OUT)
+			commsz_cols1 += dsz # WRITE(OUT)
+
+			#
+			# Calculate fixed bar width based on terminal width
+			# NB: Only used in wide-view (-w)
+			# NB: If terminal is too narrow, disable bar/columns
+			#
+			if (cols >= bar_min2) {
+				bar_size_fixed = bar_size_fixed_max
+			} else if (cols >= bar_min1) {
+				bar_size_fixed = bar_size_fixed_min
 			} else {
 				show_bar_column = 0
 				bar_size_fixed = 0
 			}
+
+			#
+			# Calculate fixed-size "VIEW" column width
+			# NB: Unused in wide-view (-w)
+			# 
+			vsz_fixed = vsz_min
+			if (cols >= bar_min2) {
+				vsz_fixed += cols - bar_min2
+				if (vsz_fixed > vsz_max)
+					vsz_fixed = vsz_max
+			} else if (cols >= bar_min1) {
+				vsz_fixed += cols - bar_min1
+				if (vsz_fixed > vsz_max)
+					vsz_fixed = vsz_max
+			} else if (cols >= vsz_cols1) {
+				vsz_fixed += cols - vsz_cols1
+			} else if (cols >= commsz_cols1) {
+				commsz = commsz_min
+				commsz += cols - commsz_cols1
+			} else if (cols >= commsz_cols2) {
+				show_rw_columns = 0
+				wv = 1
+			} else if (cols >= commsz_cols3) {
+				show_rw_columns = 0
+				wv = 1
+				commsz -= commsz_cols2 - cols
+			} else if (cols >= vsz_cols2) {
+				show_rw_columns = 0
+				show_comm_column = 0
+				wv = 1
+			} else {
+				show_rw_columns = 0
+				show_comm_column = 0
+				show_user_column = 0
+			}
 		} else {
-			vsz_fixed = show_bytes ? 21 : 15 # VIEW column
-			bar_size_fixed = cols <= 80 ? 11 : 21
+			vsz_max = 9
+			vsz_min = length(view)
+
+			#
+			# Calculate minimum terminal width required (bar_min1)
+			# to display small bar (min_fixed_bar_size) and also
+			# minimum terminal width required (bar_min2) to display
+			# larger bar (max_fixed_bar_size).
+			#
+			bar_min1 = 0
+			if (show_vfs_column)
+				bar_min1 += vfssz + 1 # VFS + space
+			bar_min1 += vsz_min + 1 # VIEW + space
+			bar_min1 += dsz + 1 # TOTAL + space
+			vsz_cols2 = bar_min1
+			bar_min1 += dsz + 1 # READ(IN) + space
+			vsz_cols1 = bar_min2 = bar_min1
+			bar_min1 += bar_size_fixed_min + 1 # small bar + space
+			bar_min2 += bar_size_fixed_max + 1 # bigger bar + space
+			bar_min1 += dsz # WRITE(OUT)
+			bar_min2 += dsz # WRITE(OUT)
+			vsz_cols1 += dsz # WRITE(OUT)
+
+			#
+			# Calculate fixed bar width based on terminal width
+			# NB: Only used in wide-view (-w)
+			# NB: If terminal is too narrow, disable bar/columns
+			#
+			if (cols >= bar_min2) {
+				bar_size_fixed = bar_size_fixed_max
+			} else if (cols >= bar_min1) {
+				bar_size_fixed = bar_size_fixed_min
+			} else {
+				show_bar_column = 0
+				bar_size_fixed = 0
+			}
+
+			#
+			# Calulate fixed-size "VIEW" column width
+			# NB: Unused in wide-view (-w)
+			#
+			vsz_fixed = vsz_min
+			if (cols >= bar_min2) {
+				vsz_fixed += cols - bar_min2
+				if (vsz_fixed > vsz_max)
+					vsz_fixed = vsz_max
+			} else if (cols >= bar_min1) {
+				vsz_fixed += cols - bar_min1
+				if (vsz_fixed > vsz_max)
+					vsz_fixed = vsz_max
+			} else if (cols >= vsz_cols1) {
+				vsz_fixed += cols - vsz_cols1
+			} else if (cols >= vsz_cols2) {
+				show_rw_columns = 0
+				wv = 1
+			} else {
+				show_rw_columns = 0
+			}
 		}
-		if (wide_view) {
+
+		if (wv) {
 			# Fixed-width
 			bar_size = bar_size_fixed
 
 			# Variable-width (%-*s)
 			vsz = cols
 			if (show_vfs_column) {
-				vsz -= 8 + 1 # %-8s VFS + space
+				vsz -= vfssz + 1 # VFS + space
 			}
 			if (view == "PID") {
-				vsz -= 6 + 1 # %6s PID + space
-				vsz -= 0 + 1 # %-*s USER + space
-				vsz -= 15 + 1 # %-15s COMM + space
+				#
+				# In context of PID-view (-p; default) PIDs are
+				# 1-6 digits and COMMs are limited by kernel to
+				# 15 characters. USER column benefits most from
+				# variable-width column.
+				#
+				vsz -= pidsz + 1 # PID + space
+				if (show_user_column)
+					vsz -= 0 + 1 # %-*s USER + space
+				if (show_comm_column)
+					vsz -= commsz + 1 # COMM + space
 			} else {
 				vsz -= 0 + 1 # %-*s VIEW + space
 			}
-			vsz -= dsz + 1 # TOTAL + space
-			vsz -= dsz + 1 # READ(IN) + space
-			if (bar_size > 0) {
-				vsz -= bar_size + 1 # bar + space
+			vsz -= dsz # TOTAL
+			if (show_rw_columns) {
+				vsz -= 1 + dsz + 1 # space + READ(IN) + space
+				if (bar_size > 0) {
+					vsz -= bar_size + 1 # bar + space
+				}
+				vsz -= dsz # WRITE(OUT)
 			}
-			vsz -= dsz # WRITE(OUT)
 		} else if (show_bar_column) {
 			# Fixed-width
 			vsz = vsz_fixed
@@ -1672,12 +1838,12 @@ EOF
 			# Variable-width (%-*s)
 			bar_size = cols
 			if (show_vfs_column) {
-				bar_size -= 8 + 1 # %-8s VFS + space
+				bar_size -= vfssz + 1 # VFS + space
 			}
 			if (view == "PID") {
-				bar_size -= 6 + 1 # %6s PID + space
+				bar_size -= pidsz + 1 # PID + space
 				bar_size -= vsz + 1 # %-*s USER + space
-				bar_size -= 15 + 1 # %-15s COMM + space
+				bar_size -= commsz + 1 # COMM + space
 			} else {
 				bar_size -= vsz + 1 # %[-]*s VIEW + space
 			}
@@ -1690,32 +1856,49 @@ EOF
 			vsz = vsz_fixed
 		}
 
+		if (vsz < vsz_min)
+			vsz = vsz_min
+
 		#
 		# Calculate format and line width
 		# ST: VIEWS
 		#
+
 		fmt = ""
 		fmtsz = 0
+
 		if (show_vfs_column) {
-			fmt = fmt " %-8s" # VFS column
-			fmtsz += 1 + 8
+			fmt = fmt " %-" vfssz "s" # VFS
+			fmtsz += 1 + vfssz
 		}
+
 		if (view == "PID") {
-			fmt = fmt " %6s" # PID column
-			fmt = fmt " %-" vsz "s" # USER column
-			fmt = fmt " %-15s" # COMM column
-			fmtsz += 1 + 6 + 1 + vsz + 1 + 15
+			fmt = fmt " %" pidsz "s" # PID
+			fmtsz += 1 + pidsz
+			if (show_user_column) {
+				fmt = fmt " %-" vsz "s" # USER
+				fmtsz += 1 + vsz
+			}
+			if (show_comm_column) {
+				fmt = fmt " %-" commsz "s" # COMM
+				fmtsz += 1 + commsz
+			}
 		} else {
-			fmt = fmt " %-" vsz "s" # VIEW column
+			fmt = fmt " %-" vsz "s" # VIEW
 			fmtsz += 1 + vsz
 		}
-		fmt = fmt " %" dsz "s" # TOTAL column
-		if (cons) {
-			fmt = fmt " " cyan "%" dsz "s" # READ(IN) column
-		} else {
-			fmt = fmt " %" dsz "s" # READ(IN) column
+
+		fmt = fmt " %" dsz "s" # TOTAL
+		fmtsz += 1 + dsz
+		if (show_rw_columns) {
+			if (cons) {
+				fmt = fmt " " cyan "%" dsz "s" # READ(IN)
+			} else {
+				fmt = fmt " %" dsz "s" # READ(IN)
+			}
+			fmtsz += 1 + dsz
 		}
-		fmtsz += 1 + dsz + 1 + dsz
+
 		if (show_bar_column) {
 			full_bar = bar_size
 			bar_size = int(bar_size / 2)
@@ -1727,19 +1910,32 @@ EOF
 				fmt = fmt "|%-*s" # write_bar
 			}
 			fmtsz += 1 + bar_size + 1 + bar_size
-			fmt = fmt " %-" dsz "s" # WRITE(OUT) column
+			fmt = fmt " %-" dsz "s" # WRITE(OUT)
 			fmtsz += 1 + dsz
-		} else if (cons) {
-			fmt = fmt " " red "%" dsz "s" # WRITE(OUT) column
-			fmtsz += 1 + dsz
-		} else {
-			fmt = fmt " %" dsz "s" # WRITE(OUT) column
+		} else if (show_rw_columns) {
+			if (cons) {
+				fmt = fmt " " red "%" dsz "s" # WRITE(OUT)
+			} else {
+				fmt = fmt " %" dsz "s" # WRITE(OUT)
+			}
 			fmtsz += 1 + dsz
 		}
+
 		fmt = substr(fmt, 2) # Trim leading space
 		fmtsz -= 1
 		fmt = fmt (cons ? fgreset : "") "\n"
 
+		#
+		# Export calculated column sizes for things we truncate
+		#
+		delete csz
+		csz["comm"] = commsz
+		csz["vfs"] = vfssz
+		csz["view"] = vsz
+
+		#
+		# Redraw console
+		#
 		if (cons) {
 			clear_buffer()
 			buffer_add_data()
@@ -1816,60 +2012,106 @@ EOF
 	}
 
 	function buffer_add1(vfs, arg1, total, read, read_bar, write_bar,
-		write, prefix, suffix)
+		write, prefix, suffix,        str)
 	{
+		if (length(vfs) > csz["vfs"])
+			vfs = substr(vfs, 1, csz["vfs"])
+		if (length(arg1) > csz["view"])
+			arg1 = substr(arg1, 1, csz["view"])
 		if (show_vfs_column) {
 			if (show_bar_column) {
-				buffer_add(sprintf(prefix fmt suffix, vfs,
-					arg1, total, read, bar_size, read_bar,
-					bar_size, write_bar, write))
+				str = sprintf(fmt, vfs, arg1, total, read,
+					bar_size, read_bar, bar_size,
+					write_bar, write)
 			} else {
-				buffer_add(sprintf(prefix fmt suffix, vfs,
-					arg1, total, read, write))
+				str = sprintf(fmt, vfs, arg1, total, read,
+					write)
 			}
 		} else if (show_bar_column) {
-			buffer_add(sprintf(prefix fmt suffix, arg1, total,
-				read, bar_size, read_bar, bar_size, write_bar,
-				write))
+			str = sprintf(fmt, arg1, total, read, bar_size,
+				read_bar, bar_size, write_bar, write)
 		} else {
-			buffer_add(sprintf(prefix fmt suffix, arg1, total,
-				read, write))
+			str = sprintf(fmt, arg1, total, read, write)
 		}
+		if (cols < fmtsz) {
+			str = substr(str, 1, cols) (str ~ /\n$/ ? "\n" : "")
+		}
+		buffer_add(prefix str suffix)
 	}
 
 	function buffer_add3(vfs, arg1, arg2, arg3, total, read, read_bar,
-		write_bar, write, prefix, suffix)
+		write_bar, write, prefix, suffix,        str)
 	{
+		if (length(vfs) > csz["vfs"])
+			vfs = substr(vfs, 1, csz["vfs"])
+		if (length(arg2) > csz["view"])
+			arg2 = substr(arg2, 1, csz["view"])
+		if (length(arg3) > csz["comm"])
+			arg3 = substr(arg3, 1, csz["comm"])
 		if (show_vfs_column) {
 			if (show_bar_column) {
-				buffer_add(sprintf(prefix fmt suffix, vfs,
-					arg1, arg2, arg3, total, read,
-					bar_size, read_bar, bar_size,
-					write_bar, write))
+				str = sprintf(fmt, vfs, arg1, arg2, arg3,
+					total, read, bar_size, read_bar,
+					bar_size, write_bar, write)
+			} else if (show_rw_columns) {
+				str = sprintf(fmt, vfs, arg1, arg2, arg3,
+					total, read, write)
+			} else if (show_comm_column) {
+				str = sprintf(fmt, vfs, arg1, arg2, arg3,
+					total)
+			} else if (show_user_column) {
+				str = sprintf(fmt, vfs, arg1, arg2, total)
 			} else {
-				buffer_add(sprintf(prefix fmt suffix, vfs,
-					arg1, arg2, arg3, total, read, write))
+				str = sprintf(fmt, vfs, arg1, total)
 			}
 		} else if (show_bar_column) {
-			buffer_add(sprintf(prefix fmt suffix, arg1, arg2, arg3,
-				total, read, bar_size, read_bar, bar_size,
-				write_bar, write))
+			str = sprintf(fmt, arg1, arg2, arg3, total, read,
+				bar_size, read_bar, bar_size, write_bar, write)
+		} else if (show_rw_columns) {
+			str = sprintf(fmt, arg1, arg2, arg3, total, read,
+				write)
+		} else if (show_comm_column) {
+			str = sprintf(fmt, arg1, arg2, arg3, total)
+		} else if (show_user_column) {
+			str = sprintf(fmt, arg1, arg2, total)
 		} else {
-			buffer_add(sprintf(prefix fmt suffix, arg1, arg2, arg3,
-				total, read, write))
+			str = sprintf(fmt, arg1, total)
 		}
+		if (cols < fmtsz) {
+			str = substr(str, 1, cols) (str ~ /\n$/ ? "\n" : "")
+		}
+		buffer_add(prefix str suffix)
 	}
 
-	function buffer_add_header(        prefix, suffix)
+	function buffer_add_header(        prefix, suffix,
+		presz, n, fmt, dtfmt, dtsz, ifmt, sz, str)
 	{
 		if (output_json) return
-		buffer_add(sprintf("Interval: %-*s %31s\n",
-			fmtsz - 9 - 2 - 31,
-			sprintf("%.3f", interval) "s",
-			strftime("%c", tm)))
+		ifmt = "%.3fs"
+		presz = 9 + 1 + length(sprintf(ifmt, interval))
+			#  9 = "Interval:"
+			#  1 = number of spaces
+		sz = cols < fmtsz ? cols : fmtsz
+		for (n = split("|%T|%F %T|%c", fmt, /\|/); n > 0; n--) {
+			dtfmt = fmt[n]
+			dtsz = dtfmt == "" ? 0 : length(strftime(dtfmt, tm))
+			if (sz >= presz + 1 + dtsz) break
+		}
+		if (dtfmt == "") {
+			str = sprintf("Interval: " ifmt, interval)
 				#  9 = "Interval:"
-				#  2 = number of spaces
-				# 31 = %31s date
+				#  1 = number of spaces
+			if (length(str) > sz) {
+				str = substr(str, 1, sz)
+			}
+			buffer_add(str "\n")
+		} else {
+			buffer_add(sprintf("Interval: %-*s %*s\n",
+				sz - 9 - 2 - dtsz, sprintf(ifmt, interval),
+				dtsz, strftime(dtfmt, tm)))
+					#  9 = "Interval:"
+					#  2 = number of spaces
+		}
 		prefix = cons ? inv green : ""
 		suffix = cons ? fgreset noinv : ""
 		empty_bar = ""
@@ -2255,15 +2497,11 @@ EOF
 		} else if (show_bytes) {
 			# ST: VIEWDATA
 			if (curview == "pid") {
-				if (length(user) > vsz)
-					user = substr(user, 1, vsz)
 				buffer_add3(fstype, cred, user, comm,
 					humanize(cred_rw),
 					humanize(cred_read), read_bar,
 					write_bar, humanize(cred_write))
 			} else {
-				if (length(cred) > vsz)
-					cred = substr(cred, 1, vsz)
 				buffer_add1(fstype, cred, humanize(cred_rw),
 					humanize(cred_read), read_bar,
 					write_bar, humanize(cred_write))
@@ -2271,15 +2509,11 @@ EOF
 		} else {
 			# ST: VIEWDATA
 			if (curview == "pid") {
-				if (length(user) > vsz)
-					user = substr(user, 1, vsz)
 				buffer_add3(fstype, cred, user, comm,
 					humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))
 			} else {
-				if (length(cred) > vsz)
-					cred = substr(cred, 1, vsz)
 				buffer_add1(fstype, cred, humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))

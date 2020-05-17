@@ -5,7 +5,7 @@
 #
 # $Title: Script for getting the package name from an RPM SPEC-file $
 # $Copyright: 1999-2017 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/Mk/rpmname 2020-04-17 15:35:48 -0700 freebsdfrau $
+# $FrauBSD: viotop/Mk/rpmname 2020-05-17 14:38:52 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -43,7 +43,11 @@ $AWK -v name_regex="^$sp[Nn][Aa][Mm][Ee]:$sp"             \
 		!vers && sub(vers_regex, "") { vers = $0 }
 		!vrel && sub(vrel_regex, "") { vrel = $0 }
 		name && vers && vrel { exit found++ }
-		END { print name "-" vers "-" vrel; exit !found }
+		END {
+			gsub(/%{[^}]*}/, "", vrel)
+			print name "-" vers "-" vrel
+			exit !found
+		}
 ' "$1"
 
 ################################################################################

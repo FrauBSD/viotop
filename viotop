@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-16 19:06:58 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-17 10:30:31 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.0 $'
+VERSION='$Version: 8.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -50,7 +50,7 @@ FAILURE=1
 #
 # Command-line options
 #
-COLOR=					# -C
+COLOR=1					# -C
 DEBUG=					# -d
 DEBUGGER=				# -D
 FILTER_FOLLOW=				# -f
@@ -63,6 +63,7 @@ INTERVAL=$DEFAULT_INTERVAL		# -i sec
 NO_NAMES=				# -n
 NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
+QUIET=					# -q
 RAW_VIEW=				# -r
 SHOW_AGGREGATES=			# -a
 SHOW_BYTES=				# -b
@@ -78,6 +79,7 @@ WIDE_VIEW=				# -w
 # Miscellaneous
 #
 CONS=1
+[ -t 1 ] || CONS= COLOR= # stdout is not a tty
 FILTER_COMM=
 FILTER_GID=
 FILTER_UID=
@@ -133,8 +135,10 @@ usage()
 	printf "$optfmt" "-j" "Output JSON formatted data."
 	printf "$optfmt" "-N num" "Perform num samples and exit."
 	printf "$optfmt" "-n" "Do not attempt to map uid/gid to names."
+	printf "$optfmt" "-o" "Force non-console output."
 	printf "$optfmt" "-P pid" "Process ID filter."
 	printf "$optfmt" "-p" "View read/write activity by PID (default)."
+	printf "$optfmt" "-q" "Quiet. Hide informational messages."
 	printf "$optfmt" "-r" "Raw view. Do not format output of bpftrace."
 	printf "$optfmt" "-T type" "Filter on filesystem type."
 	printf "$optfmt" "-t" "View read/write activity by VFS type."
@@ -340,7 +344,7 @@ resize()
 #
 # Process command-line options
 #
-while getopts AabCcDdfG:ghIi:JjN:nP:prT:tU:uvw flag; do
+while getopts AabCcDdfG:ghIi:JjN:noP:pqrT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
@@ -360,8 +364,10 @@ while getopts AabCcDdfG:ghIi:JjN:nP:prT:tU:uvw flag; do
 	N) [ "$OPTARG" ] || usage "-N option requires an argument" # NOTREACHED
 		NSAMPLES="$OPTARG" ;;
 	n) NO_NAMES=1 ;;
+	o) CONS= COLOR= ;;
 	P) FILTER_PID="$OPTARG" ;;
 	p) VIEW=PID VIEW_PID=1 ;;
+	q) QUIET=1 ;;
 	r) RAW_VIEW=1 ;;
 	T) FILTER_TYPE="$OPTARG" ;;
 	t) VIEW=TYPE VIEW_TYPE=1 ;;
@@ -405,15 +411,6 @@ if [ ! "$OUTPUT_JSON" ]; then
 	TYPE) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_USER= ;;
 	USER) VIEW_COMM= VIEW_GROUP= VIEW_PID= VIEW_TYPE= ;;
 	esac
-fi
-
-#
-# Process `-C' option
-#
-if [ "$COLOR" ]; then
-	CONS=1
-else
-	[ -t 1 ] || CONS= # stdout is not a tty
 fi
 
 #
@@ -1485,7 +1482,8 @@ EOF
 	done
 	echo EXIT:$status_collected # Send status to post-processor
 
-} | awk -v cols=$cols \
+} | awk -v color=${COLOR:-0} \
+	-v cols=$cols \
 	-v cons=${CONS:-0} \
 	-v debug=${DEBUG:-0} \
 	-v debugger=${DEBUGGER:-0} \
@@ -1494,6 +1492,7 @@ EOF
 	-v no_names=${NO_NAMES:-0} \
 	-v nsamples=${NSAMPLES:-0} \
 	-v output_json=${OUTPUT_JSON:-0} \
+	-v quiet=${QUIET:-0} \
 	-v raw_view=${RAW_VIEW:-0} \
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
@@ -1584,28 +1583,32 @@ EOF
 
 	function info(str)
 	{
-		printf "%sINFO%s %s\n",
-			cons ? magenta : "", cons ? fgreset : "", str > stderr
+		if (quiet) return
+		printf "%sINFO%s %s\n", color ? magenta : "",
+			color ? fgreset : "", str > stderr
 		fflush(stderr)
 	}
 
 	function info_n(str)
 	{
-		printf "%sINFO%s %s",
-			cons ? magenta : "", cons ? fgreset : "", str > stderr
+		if (quiet) return
+		printf "%sINFO%s %s", color ? magenta : "",
+			color ? fgreset : "", str > stderr
 		fflush(stderr)
 	}
 
 	function msg(str)
 	{
+		if (quiet) return
 		print $0 > stderr
 		fflush(stderr)
 	}
 
 	function warn(str)
 	{
-		printf "%sWARNING%s %s\n", cons ? yellow bold : "",
-			cons ? fgreset nobold : "", str > stderr
+		if (quiet) return
+		printf "%sWARNING%s %s\n", color ? yellow bold : "",
+			color ? fgreset nobold : "", str > stderr
 		fflush(stderr)
 	}
 
@@ -1676,7 +1679,7 @@ EOF
 			commsz_cols2 += commsz + 1 # COMM + space
 			commsz_cols3 += commsz_min + 1 # COMM + space
 			bar_min1 += dsz + 1 # TOTAL + space
-			commsz_cols1 += dsz + 1 # TOTA/L + space
+			commsz_cols1 += dsz + 1 # TOTAL + space
 			commsz_cols2 += dsz # TOTAL
 			commsz_cols3 += dsz # TOTAL
 			vsz_cols2 += dsz # TOTAL
@@ -1705,7 +1708,7 @@ EOF
 			}
 
 			#
-			# Calculate fixed-size "VIEW" column width
+			# Calculate fixed-size "USER" column width
 			# NB: Unused in wide-view (-w)
 			# 
 			vsz_fixed = vsz_min
@@ -1891,7 +1894,7 @@ EOF
 		fmt = fmt " %" dsz "s" # TOTAL
 		fmtsz += 1 + dsz
 		if (show_rw_columns) {
-			if (cons) {
+			if (color) {
 				fmt = fmt " " cyan "%" dsz "s" # READ(IN)
 			} else {
 				fmt = fmt " %" dsz "s" # READ(IN)
@@ -1904,7 +1907,7 @@ EOF
 			bar_size = int(bar_size / 2)
 			if (bar_size * 2 == full_bar) bar_size--
 			fmt = fmt " %*s" # read_bar
-			if (cons) {
+			if (color) {
 				fmt = fmt fgreset "|" red "%-*s" # write_bar
 			} else {
 				fmt = fmt "|%-*s" # write_bar
@@ -1913,7 +1916,7 @@ EOF
 			fmt = fmt " %-" dsz "s" # WRITE(OUT)
 			fmtsz += 1 + dsz
 		} else if (show_rw_columns) {
-			if (cons) {
+			if (color) {
 				fmt = fmt " " red "%" dsz "s" # WRITE(OUT)
 			} else {
 				fmt = fmt " %" dsz "s" # WRITE(OUT)
@@ -1923,7 +1926,7 @@ EOF
 
 		fmt = substr(fmt, 2) # Trim leading space
 		fmtsz -= 1
-		fmt = fmt (cons ? fgreset : "") "\n"
+		fmt = fmt (color ? fgreset : "") "\n"
 
 		#
 		# Export calculated column sizes for things we truncate
@@ -2040,10 +2043,12 @@ EOF
 	}
 
 	function buffer_add3(vfs, arg1, arg2, arg3, total, read, read_bar,
-		write_bar, write, prefix, suffix,        str)
+		write_bar, write, prefix, suffix,        str, show2, show3)
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
+		show3 = show_comm_column
+		show2 = show_user_column
 		if (length(arg2) > csz["view"])
 			arg2 = substr(arg2, 1, csz["view"])
 		if (length(arg3) > csz["comm"])
@@ -2056,10 +2061,10 @@ EOF
 			} else if (show_rw_columns) {
 				str = sprintf(fmt, vfs, arg1, arg2, arg3,
 					total, read, write)
-			} else if (show_comm_column) {
+			} else if (show3) {
 				str = sprintf(fmt, vfs, arg1, arg2, arg3,
 					total)
-			} else if (show_user_column) {
+			} else if (show2) {
 				str = sprintf(fmt, vfs, arg1, arg2, total)
 			} else {
 				str = sprintf(fmt, vfs, arg1, total)
@@ -2070,9 +2075,9 @@ EOF
 		} else if (show_rw_columns) {
 			str = sprintf(fmt, arg1, arg2, arg3, total, read,
 				write)
-		} else if (show_comm_column) {
+		} else if (show3) {
 			str = sprintf(fmt, arg1, arg2, arg3, total)
-		} else if (show_user_column) {
+		} else if (show2) {
 			str = sprintf(fmt, arg1, arg2, total)
 		} else {
 			str = sprintf(fmt, arg1, total)
@@ -2112,8 +2117,8 @@ EOF
 					#  9 = "Interval:"
 					#  2 = number of spaces
 		}
-		prefix = cons ? inv green : ""
-		suffix = cons ? fgreset noinv : ""
+		prefix = color ? inv green : ""
+		suffix = color ? fgreset noinv : ""
 		empty_bar = ""
 		# ST: VIEWS
 		if (view == "PID") {
@@ -2386,8 +2391,8 @@ EOF
 				read_total, write_total)
 		}
 		if (more = i > 0) buffer_add(sprintf("%s(%d more) ... %s",
-			cons ? inv bold yellow : "", i,
-			cons ? noinv nobold fgreset : ""))
+			color ? inv bold yellow : "", i,
+			color ? noinv nobold fgreset : ""))
 	}
 
 	function process_cred(curview, cred, read_total, write_total,

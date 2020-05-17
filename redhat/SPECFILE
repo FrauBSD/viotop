@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 7.4.2
+Version: 8.0
 Release: 1
 Buildarch: noarch
 
@@ -79,6 +79,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Sat May 16 2020 Devin Teske <dteske@fraubsd.org> 8.0-1
+- 45ca3f0 Intelligent realtime resizing
 * Sat May 16 2020 Devin Teske <dteske@fraubsd.org> 7.4.2-1
 - e52e00f OK to use systime() since we depend on bpftrace
 * Sat May 16 2020 Devin Teske <dteske@fraubsd.org> 7.4.1-1

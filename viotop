@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-17 10:30:31 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-17 19:23:22 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.1 $'
+VERSION='$Version: 8.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -65,6 +65,7 @@ NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
 QUIET=					# -q
 RAW_VIEW=				# -r
+REDACT=					# -R
 SHOW_AGGREGATES=			# -a
 SHOW_BYTES=				# -b
 VIEW_AGGREGATES=			# -A
@@ -139,6 +140,7 @@ usage()
 	printf "$optfmt" "-P pid" "Process ID filter."
 	printf "$optfmt" "-p" "View read/write activity by PID (default)."
 	printf "$optfmt" "-q" "Quiet. Hide informational messages."
+	printf "$optfmt" "-R" "Redact potentially sensitive information."
 	printf "$optfmt" "-r" "Raw view. Do not format output of bpftrace."
 	printf "$optfmt" "-T type" "Filter on filesystem type."
 	printf "$optfmt" "-t" "View read/write activity by VFS type."
@@ -344,7 +346,7 @@ resize()
 #
 # Process command-line options
 #
-while getopts AabCcDdfG:ghIi:JjN:noP:pqrT:tU:uvw flag; do
+while getopts AabCcDdfG:ghIi:JjN:noP:pqRrT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
@@ -368,6 +370,7 @@ while getopts AabCcDdfG:ghIi:JjN:noP:pqrT:tU:uvw flag; do
 	P) FILTER_PID="$OPTARG" ;;
 	p) VIEW=PID VIEW_PID=1 ;;
 	q) QUIET=1 ;;
+	R) REDACT=1 ;;
 	r) RAW_VIEW=1 ;;
 	T) FILTER_TYPE="$OPTARG" ;;
 	t) VIEW=TYPE VIEW_TYPE=1 ;;
@@ -1494,6 +1497,7 @@ EOF
 	-v output_json=${OUTPUT_JSON:-0} \
 	-v quiet=${QUIET:-0} \
 	-v raw_view=${RAW_VIEW:-0} \
+	-v redact=${REDACT:-0} \
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
 	-v show_bytes=${SHOW_BYTES:-0} \
@@ -1555,6 +1559,24 @@ EOF
 		delete times
 		delete uid2name_cache
 		delete gid2name_cache
+
+		if (redact) {
+			m = "^(USER|total|"
+			if ((u = ENVIRON["USER"]) != "")
+				m = m u "|"
+			if ((s = ENVIRON["SUDO_USER"]) != "" && s != u)
+				m = m s "|"
+			cmd = "getent passwd 2> /dev/null"
+			while (cmd | getline > 0) {
+				if (split($0, f, /:/) < 3) continue
+				if (f[3] > 1024 && f[3] !~ /^6553[456]$/)
+					continue
+				m = m f[1] "|"
+			}
+			close(cmd)
+			m = m "\\*)$"
+			unredacted_users = m
+		}
 	}
 
 	######################################## FUNCTIONS
@@ -1610,6 +1632,23 @@ EOF
 		printf "%sWARNING%s %s\n", color ? yellow bold : "",
 			color ? fgreset nobold : "", str > stderr
 		fflush(stderr)
+	}
+
+	function get_random(len,        c, n, r, rdata, rfile, rlen)
+	{
+		if (len < 1) return ""
+		rlen = 0
+		rdata = ""
+		rfile = "/dev/urandom"
+		while (length(rdata) < len && getline r < rfile > 0) {
+			for (n = split(r, c, ""); n >= 1; n--) {
+				if (c[n] !~ /[\x41-\x5a]/) continue
+				rdata = rdata c[n]
+				if (++rlen == len) break
+			}
+		}
+		close(rfile)
+		return rdata
 	}
 
 	function resize(        commsz, dsz, pidsz, vfssz, vsz,
@@ -2019,6 +2058,9 @@ EOF
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
+		if (redact && view == "USER" && arg1 !~ unredacted_users) {
+			arg1 = get_random(length(arg1))
+		}
 		if (length(arg1) > csz["view"])
 			arg1 = substr(arg1, 1, csz["view"])
 		if (show_vfs_column) {
@@ -2047,6 +2089,10 @@ EOF
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
+		if (redact && arg2 !~ unredacted_users) {
+			arg2 = get_random(length(arg2))
+			arg3 = get_random(length(arg3))
+		}
 		show3 = show_comm_column
 		show2 = show_user_column
 		if (length(arg2) > csz["view"])

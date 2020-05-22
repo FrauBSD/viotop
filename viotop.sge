@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-05-17 19:23:22 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-05-21 20:32:39 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2 $'
+VERSION='$Version: 8.2.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1884,6 +1884,18 @@ EOF
 			close(cmd)
 			m = m "\\*)$"
 			unredacted_users = m
+
+			m = "^(GROUP|total|"
+			cmd = "getent group 2> /dev/null"
+			while (cmd | getline > 0) {
+				if (split($0, f, /:/) < 3) continue
+				if (f[3] > 1024 && f[3] !~ /^6553[456]$/)
+					continue
+				m = m f[1] "|"
+			}
+			close(cmd)
+			m = m "\\*)$"
+			unredacted_groups = m
 		}
 	}
 
@@ -2490,8 +2502,11 @@ EOF
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
-		if (redact && view == "USER" && arg1 !~ unredacted_users) {
-			arg1 = get_random(length(arg1))
+		if (redact) {
+			if (view == "USER" && arg1 !~ unredacted_users)
+				arg1 = get_random(length(arg1))
+			else if (view == "GROUP" && arg1 !~ unredacted_groups)
+				arg1 = get_random(length(arg1))
 		}
 		if (length(arg1) > csz["view"])
 			arg1 = substr(arg1, 1, csz["view"])

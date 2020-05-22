@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-05-21 20:51:30 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-05-21 21:31:20 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2.2 $'
+VERSION='$Version: 8.2.3 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2502,10 +2502,11 @@ EOF
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
-		if (redact) {
-			if (view == "USER" && arg1 !~ unredacted_users)
+		if (redact && view == "USER") {
+			if (arg1 !~ unredacted_users)
 				arg1 = get_random(length(arg1))
-			else if (view == "GROUP" && arg1 !~ unredacted_groups)
+		} else if (redact && view == "GROUP") {
+			if (arg1 !~ unredacted_groups)
 				arg1 = get_random(length(arg1))
 		}
 		if (length(arg1) > csz["view"])

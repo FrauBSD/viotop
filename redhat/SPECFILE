@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 8.2.2
+Version: 8.2.3
 Release: 1
 Buildarch: noarch
 
@@ -79,6 +79,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.3-1
+- 1a3dce3 Reduce diff between beegfstop
 * Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.2-1
 - 99332ae Improve -R to work with -j/-J
 * Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.1-1

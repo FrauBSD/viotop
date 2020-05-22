@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 8.2.5
+Version: 8.2.6
 Release: 1
 Buildarch: noarch
 
@@ -79,6 +79,9 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Fri May 22 2020 Devin Teske <dteske@fraubsd.org> 8.2.6-1
+- ee041ac Comments
+- NB: -v fixed to produce correct version (8.2.5 reported 8.2.4)
 * Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.5-1
 - a949dbe Whitespace and comments
 * Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.4-1

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-05-21 21:49:40 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-05-21 22:00:00 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2.4 $'
+VERSION='$Version: 8.2.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2076,7 +2076,7 @@ EOF
 			#
 			# Calculate fixed-size "USER" column width
 			# NB: Unused in wide-view (-w)
-			# 
+			#
 			vsz_fixed = vsz_min
 			if (cols >= bar_min2) {
 				vsz_fixed += cols - bar_min2
@@ -2164,7 +2164,7 @@ EOF
 			#
 			# Calculate fixed-size "NAME" column width
 			# NB: Unused in wide-view (-w)
-			# 
+			#
 			vsz_fixed = vsz_min
 			if (cols >= bar_min2) {
 				vsz_fixed += cols - bar_min2
@@ -2234,7 +2234,7 @@ EOF
 			}
 
 			#
-			# Calulate fixed-size "VIEW" column width
+			# Calculate fixed-size "VIEW" column width
 			# NB: Unused in wide-view (-w)
 			#
 			vsz_fixed = vsz_min

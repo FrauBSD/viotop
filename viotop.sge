@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-05-21 20:32:39 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-05-21 20:51:30 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2.1 $'
+VERSION='$Version: 8.2.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -3017,6 +3017,10 @@ EOF
 					curview, cred)
 				json_out = json_add_str(json_out,
 					"fstype", fstype)
+				if (redact && user !~ unredacted_users) {
+					user = get_random(length(user))
+					comm = get_random(length(comm))
+				}
 				json_out = json_add_str(json_out,
 					"user", user)
 				json_out = json_add_str(json_out,
@@ -3032,11 +3036,22 @@ EOF
 					curview, cred)
 				json_out = json_add_str(json_out,
 					"fstype", fstype)
+				if (redact && user !~ unredacted_users) {
+					user = get_random(length(user))
+					name = get_random(length(name))
+				}
 				json_out = json_add_str(json_out,
 					"user", user)
 				json_out = json_add_str(json_out,
 					"name", name)
 			} else {
+				if (redact && curview == "user") {
+					if (cred !~ unredacted_users)
+						cred = get_random(length(cred))
+				} else if (redact && curview == "group") {
+					if (cred !~ unredacted_groups)
+						cred = get_random(length(cred))
+				}
 				json_out = json_add_str(json_out,
 					curview, cred)
 				json_out = json_add_str(json_out,

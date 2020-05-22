@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-05-21 21:31:20 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-05-21 21:49:40 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2.3 $'
+VERSION='$Version: 8.2.4 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2029,9 +2029,9 @@ EOF
 
 			#
 			# Calculate minimum terminal width required (bar_min1)
-			# to display small bar (min_fixed_bar_size) and also
+			# to display small bar (bar_size_fixed_min) and also
 			# minimum terminal width required (bar_min2) to display
-			# larger bar (max_fixed_bar_size).
+			# larger bar (bar_size_fixed_max).
 			#
 			bar_min1 = 0
 			if (show_vfs_column)
@@ -2113,9 +2113,9 @@ EOF
 
 			#
 			# Calculate minimum terminal width required (bar_min1)
-			# to display small bar (min_fixed_bar_size) and also
+			# to display small bar (bar_size_fixed_min) and also
 			# minimum terminal width required (bar_min2) to display
-			# larger bar (max_fixed_bar_size).
+			# larger bar (bar_size_fixed_max).
 			#
 			bar_min1 = 0
 			if (show_vfs_column)
@@ -2201,9 +2201,9 @@ EOF
 
 			#
 			# Calculate minimum terminal width required (bar_min1)
-			# to display small bar (min_fixed_bar_size) and also
+			# to display small bar (bar_size_fixed_min) and also
 			# minimum terminal width required (bar_min2) to display
-			# larger bar (max_fixed_bar_size).
+			# larger bar (bar_size_fixed_max).
 			#
 			bar_min1 = 0
 			if (show_vfs_column)

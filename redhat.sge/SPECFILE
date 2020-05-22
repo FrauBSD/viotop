@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop with SGE support
 License: BSD
-Version: 8.2.3
+Version: 8.2.4
 Release: 1
 Buildarch: noarch
 
@@ -83,6 +83,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.4-1
+- 1ce1ef9 Fix comments
 * Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.3-1
 - 1a3dce3 Reduce diff between beegfstop
 * Thu May 21 2020 Devin Teske <dteske@fraubsd.org> 8.2.2-1

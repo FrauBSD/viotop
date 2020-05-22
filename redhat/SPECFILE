@@ -106,7 +106,7 @@ WWW: https://www.fraubsd.org/viotop
 - 30aa05a Use non-GNU time method
 * Sun May  3 2020 Devin Teske <dteske@fraubsd.org> 7.2.6-1
 - 5849e17 Use same data start RE as beegfstop
-* Fri May  1 2020 Devin Teske <dteske@fraubsd.org> 7.2.5-1
+* Fri May  3 2020 Devin Teske <dteske@fraubsd.org> 7.2.5-1
 - 5c8f43f NFC Comments
 * Sun May  3 2020 Devin Teske <dteske@fraubsd.org> 7.2.4-1
 - 44f66b6 Tolerate missing /dev/tty (jails) and fix -I live resizing [7.2.4]

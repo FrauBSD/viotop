@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-21 22:00:00 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-05-22 13:54:10 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2.4 $'
+VERSION='$Version: 8.2.6 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2166,8 +2166,6 @@ EOF
 		}
 		if (dtfmt == "") {
 			str = sprintf("Interval: " ifmt, interval)
-				#  9 = "Interval:"
-				#  1 = number of spaces
 			if (length(str) > sz) {
 				str = substr(str, 1, sz)
 			}

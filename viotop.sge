@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-05-22 15:29:23 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-05-23 19:56:47 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.2.8 $'
+VERSION='$Version: 8.2.9 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1971,11 +1971,10 @@ EOF
 		return rdata
 	}
 
-	function resize(        commsz, dsz, pidsz, vfssz, vsz,
-		bar_size_fixed, bar_size_fixed_max, bar_size_fixed_min,
-		bar_min1, bar_min2,
-		commsz_cols1, commsz_cols2, commsz_cols3,
-		usersz_cols1, usersz_cols2, usersz_cols3,
+	function resize(        dsz, vsz, vsz_fixed, bar_size_fixed,
+		bar_size_fixed_max, bar_size_fixed_min, bar_min1, bar_min2,
+		vfssz, pidsz, commsz, commsz_cols1, commsz_cols2, commsz_cols3,
+		sgesz, usersz, usersz_cols1, usersz_cols2, usersz_cols3,
 		vsz_cols1, vsz_cols2, vsz_max, vsz_min, wv)
 	{
 		if (output_json) return

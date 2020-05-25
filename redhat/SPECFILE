@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 8.2.9
+Version: 8.3
 Release: 1
 Buildarch: noarch
 
@@ -79,6 +79,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Sun May 24 2020 Devin Teske <dteske@fraubsd.org> 8.3-1
+- 90d7f51 Fix extra newline with -j/-J and -o
 * Sat May 23 2020 Devin Teske <dteske@fraubsd.org> 8.2.9-1
 - 2731561 Fixup resize() locals
 * Fri May 22 2020 Devin Teske <dteske@fraubsd.org> 8.2.8-1

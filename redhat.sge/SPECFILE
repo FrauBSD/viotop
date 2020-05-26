@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop with SGE support
 License: BSD
-Version: 8.3
+Version: 8.3.1
 Release: 1
 Buildarch: noarch
 
@@ -83,6 +83,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Mon May 25 2020 Devin Teske <dteske@fraubsd.org> 8.3.1-1
+- b8b3e93 Fixup PATH so we can find bpftool when run via cron
 * Sun May 24 2020 Devin Teske <dteske@fraubsd.org> 8.3-1
 - 90d7f51 Fix extra newline with -j/-J and -o
 * Sat May 23 2020 Devin Teske <dteske@fraubsd.org> 8.2.9-1

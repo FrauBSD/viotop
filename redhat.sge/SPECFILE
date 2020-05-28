@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop with SGE support
 License: BSD
-Version: 8.4
+Version: 8.4.1
 Release: 1
 Buildarch: noarch
 
@@ -83,6 +83,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu May 28 2020 Devin Teske <dteske@fraubsd.org> 8.4.1-1
+- 246ebeb Add POSIX 2017 search term for ANSI C standard signal names
 * Wed May 27 2020 Devin Teske <dteske@fraubsd.org> 8.4-1
 - 7fc3644 Fix bad trap error on Ubuntu
 * Mon May 25 2020 Devin Teske <dteske@fraubsd.org> 8.3.1-1

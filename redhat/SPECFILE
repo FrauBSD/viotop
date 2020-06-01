@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 8.4.1
+Version: 8.5
 Release: 1
 Buildarch: noarch
 
@@ -79,6 +79,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Mon Jun  1 2020 Devin Teske <dteske@fraubsd.org> 8.5-1
+- 70ceac8 Fixes for Ubuntu 18
 * Thu May 28 2020 Devin Teske <dteske@fraubsd.org> 8.4.1-1
 - 246ebeb Add POSIX 2017 search term for ANSI C standard signal names
 * Wed May 27 2020 Devin Teske <dteske@fraubsd.org> 8.4-1

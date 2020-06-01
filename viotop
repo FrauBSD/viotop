@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-05-28 20:29:01 +0000 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-06-01 07:05:42 +0000 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -37,7 +37,7 @@ DEFAULT_INTERVAL=2.0 # seconds
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.4.1 $'
+VERSION='$Version: 8.5 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -915,7 +915,7 @@ ${FILTER_FOLLOW:+
 		printf("info|Sampling data for ${INTERVAL}s (\`-i sec')...\n");
 	}
 
-${FILTER_FOLLOW:+"
+${FILTER_FOLLOW:+
 	////////////////////////////////////////////////// FORK PROBE
 
 	tracepoint:sched:sched_process_fork
@@ -928,11 +928,11 @@ ${FILTER_FOLLOW:+"
 		//
 		if ($FORK_CONDITION) {
 			@follow[\$parent_pid] = 1;
-		}
+		\}
 		if (@follow[\$parent_pid]) {
 			@follow[\$child_pid] = 1;
-		}
-	}
+		\}
+	\}
 
 	////////////////////////////////////////////////// EXIT PROBE
 
@@ -945,8 +945,8 @@ ${FILTER_FOLLOW:+"
 		//
 
 		delete(@follow[\$pid]);
-	}
-"}
+	\}
+}
 
 	////////////////////////////////////////////////// OPEN PROBES
 
@@ -1170,21 +1170,21 @@ done )
 		if (\$ret > 0)
 		{
 			// ST: VIEWS TRACEDATA
-${VIEW_COMM:+"
+${VIEW_COMM:+
 			@rd_comm[\$fstype, comm] = sum(\$count);
-"}
-${VIEW_GROUP:+"
+}
+${VIEW_GROUP:+
 			@rd_group[\$fstype, gid] = sum(\$count);
-"}
-${VIEW_PID:+"
+}
+${VIEW_PID:+
 			@rd_pid[\$fstype, pid, uid, comm] = sum(\$count);
-"}
-${VIEW_TYPE:+"
+}
+${VIEW_TYPE:+
 			@rd_type[\$fstype] = sum(\$count);
-"}
-${VIEW_USER:+"
+}
+${VIEW_USER:+
 			@rd_user[\$fstype, uid] = sum(\$count);
-"}
+}
 		}
 	}
 
@@ -1222,21 +1222,21 @@ ${VIEW_USER:+"
 		if (\$ret > 0)
 		{
 			// ST: VIEWS TRACEDATA
-${VIEW_COMM:+"
+${VIEW_COMM:+
 			@wr_comm[\$fstype, comm] = sum(\$count);
-"}
-${VIEW_GROUP:+"
+}
+${VIEW_GROUP:+
 			@wr_group[\$fstype, gid] = sum(\$count);
-"}
-${VIEW_PID:+"
+}
+${VIEW_PID:+
 			@wr_pid[\$fstype, pid, uid, comm] = sum(\$count);
-"}
-${VIEW_TYPE:+"
+}
+${VIEW_TYPE:+
 			@wr_type[\$fstype] = sum(\$count);
-"}
-${VIEW_USER:+"
+}
+${VIEW_USER:+
 			@wr_user[\$fstype, uid] = sum(\$count);
-"}
+}
 		}
 	}
 

@@ -156,6 +156,7 @@ clean:
 
 distclean: clean
 	$(RM) -f *.rpm
+	$(RM) -Rf .rpmdb
 
 #
 # Git Maintenance Targets

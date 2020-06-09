@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-06-01 07:05:42 +0000 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-06-08 19:11:10 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -26,6 +26,7 @@
 # 	OPS		Data operations (read vs write)
 # 	POST		bpftrace post-processor (awk)
 # 	PRE		Start of pre-processor (sh)
+# 	SORTING		Sort routines
 # 	SUBTOTALS	Subtotal generation
 # 	TRACEDATA	bpftrace data generation and processing
 # 	VIEWDATA	View data generation
@@ -35,9 +36,11 @@
 
 DEFAULT_INTERVAL=2.0 # seconds
 
+DEFAULT_SORT=total # Choices (case-insensitive): total read write in out
+
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.5 $'
+VERSION='$Version: 8.6 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -69,6 +72,7 @@ RAW_VIEW=				# -r
 REDACT=${VIOTOP_REDACT:+1}		# -R
 SHOW_AGGREGATES=			# -a
 SHOW_BYTES=				# -b
+SORT=$DEFAULT_SORT			# -k col
 VIEW_AGGREGATES=			# -A
 VIEW_COMM=				# -c
 VIEW_GROUP=				# -g
@@ -139,6 +143,7 @@ usage()
 		"Set interval seconds. Default \`$DEFAULT_INTERVAL'."
 	printf "$optfmt" "-J" "Output most JSON data. Same as \`-ajgstu'."
 	printf "$optfmt" "-j" "Output JSON formatted data."
+	printf "$optfmt" "-k col" "Sort column (default \`$DEFAULT_SORT')."
 	printf "$optfmt" "-N num" "Perform num samples and exit."
 	printf "$optfmt" "-n" "Do not attempt to map uid/gid to names."
 	printf "$optfmt" "-o" "Force non-console output."
@@ -353,7 +358,7 @@ resize()
 #
 # Process command-line options
 #
-while getopts AabCcDdfG:ghIi:JjN:noP:pqRrS:sT:tU:uvw flag; do
+while getopts AabCcDdfG:ghIi:Jjk:N:noP:pqRrS:sT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
@@ -370,6 +375,7 @@ while getopts AabCcDdfG:ghIi:JjN:noP:pqRrS:sT:tU:uvw flag; do
 	J) VIEW=JSON OUTPUT_JSON=1 SHOW_AGGREGATES=1 \
 		VIEW_GROUP=1 VIEW_SGE=1 VIEW_TYPE=1 VIEW_USER=1 ;;
 	j) OUTPUT_JSON=1 ;;
+	k) SORT="$OPTARG" ;;
 	N) [ "$OPTARG" ] || usage "-N option requires an argument" # NOTREACHED
 		NSAMPLES="$OPTARG" ;;
 	n) NO_NAMES=1 ;;
@@ -460,6 +466,18 @@ case "$INTERVAL" in
 *)
 	INTERVAL_SECONDS=$INTERVAL
 	INTERVAL_PROBE=interval:s:$INTERVAL_SECONDS
+esac
+
+#
+# Validate `-k col' option
+# ST: SORTING
+#
+case "$SORT" in
+"") usage "missing -k argument" ;; # NOTREACHED
+[Tt][Oo][Tt][Aa][Ll]) SORT=total ;; # TOTAL
+[Rr][Ee][Aa][Dd]|[Ii][Nn]) SORT=read ;; # READ(IN)
+[Ww][Rr][Ii][Tt][Ee]|[Oo][Uu][Tt]) SORT=write ;; # WRITE(OUT)
+*) die "-k col must be one of: total read write in out"
 esac
 
 #
@@ -1802,6 +1820,7 @@ EOF
 	-v nsamples=${NSAMPLES:-0} \
 	-v output_json=${OUTPUT_JSON:-0} \
 	-v quiet=${QUIET:-0} \
+	-v sort="$SORT" \
 	-v raw_view=${RAW_VIEW:-0} \
 	-v redact=${REDACT:-0} \
 	-v rows=$rows \
@@ -2906,11 +2925,18 @@ EOF
 
 		#
 		# Decorate combined read/write values
+		# ST: SORTING
 		#
 		load_keys(curview)
 		for (cred in _keys) {
-			v = int(map_key_read[curview, cred]) + \
-				int(map_key_write[curview, cred])
+			if (sort == "read") {
+				v = int(map_key_read[curview, cred])
+			} else if (sort == "write") {
+				v = int(map_key_write[curview, cred])
+			} else {
+				v = int(map_key_read[curview, cred]) + \
+					int(map_key_write[curview, cred])
+			}
 			if (cred ~ /^\*, /) v++ # Sort subtotals above
 			_keys[cred] = sprintf("%99d %s", v, cred)
 		}

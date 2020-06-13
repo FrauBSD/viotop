@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop
 License: BSD
-Version: 8.6
+Version: 8.7
 Release: 1
 Buildarch: noarch
 
@@ -79,6 +79,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Sat Jun 13 2020 Devin Teske <dteske@fraubsd.org> 8.7-1
+- b29437c Add -L time for lsof(8) timeout
 * Mon Jun  8 2020 Devin Teske <dteske@fraubsd.org> 8.6-1
 - 304d0a0 Add `-k col' option for choosing sort column
 * Mon Jun  1 2020 Devin Teske <dteske@fraubsd.org> 8.5-1

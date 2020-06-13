@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop.sge 2020-06-08 19:11:10 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop.sge 2020-06-13 16:28:48 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -40,7 +40,7 @@ DEFAULT_SORT=total # Choices (case-insensitive): total read write in out
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.6 $'
+VERSION='$Version: 8.7 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -73,6 +73,7 @@ REDACT=${VIOTOP_REDACT:+1}		# -R
 SHOW_AGGREGATES=			# -a
 SHOW_BYTES=				# -b
 SORT=$DEFAULT_SORT			# -k col
+TIMEOUT_LSOF=				# -L time
 VIEW_AGGREGATES=			# -A
 VIEW_COMM=				# -c
 VIEW_GROUP=				# -g
@@ -144,6 +145,7 @@ usage()
 	printf "$optfmt" "-J" "Output most JSON data. Same as \`-ajgstu'."
 	printf "$optfmt" "-j" "Output JSON formatted data."
 	printf "$optfmt" "-k col" "Sort column (default \`$DEFAULT_SORT')."
+	printf "$optfmt" "-L time" "lsof(8) timeout duration. Default none."
 	printf "$optfmt" "-N num" "Perform num samples and exit."
 	printf "$optfmt" "-n" "Do not attempt to map uid/gid to names."
 	printf "$optfmt" "-o" "Force non-console output."
@@ -169,12 +171,12 @@ run_lsof()
 	[ "$DEBUG" ] && return
 
 	case "$FILTER_TYPE" in
-	""|nfs*) lsof -X -N +c 0 ;;
+	""|nfs*) ${TIMEOUT_LSOF:+timeout "$TIMEOUT_LSOF"} lsof -X -N +c 0 ;;
 	esac
 
 	case "$FILTER_TYPE" in
 	nfs*) : skip ;;
-	*) lsof -X +c 0 +e /
+	*) ${TIMEOUT_LSOF:+timeout "$TIMEOUT_LSOF"} lsof -X +c 0 +e /
 	esac
 }
 
@@ -358,7 +360,7 @@ resize()
 #
 # Process command-line options
 #
-while getopts AabCcDdfG:ghIi:Jjk:N:noP:pqRrS:sT:tU:uvw flag; do
+while getopts AabCcDdfG:ghIi:Jjk:L:N:noP:pqRrS:sT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
@@ -376,6 +378,7 @@ while getopts AabCcDdfG:ghIi:Jjk:N:noP:pqRrS:sT:tU:uvw flag; do
 		VIEW_GROUP=1 VIEW_SGE=1 VIEW_TYPE=1 VIEW_USER=1 ;;
 	j) OUTPUT_JSON=1 ;;
 	k) SORT="$OPTARG" ;;
+	L) TIMEOUT_LSOF="$OPTARG" ;;
 	N) [ "$OPTARG" ] || usage "-N option requires an argument" # NOTREACHED
 		NSAMPLES="$OPTARG" ;;
 	n) NO_NAMES=1 ;;
@@ -478,6 +481,19 @@ case "$SORT" in
 [Rr][Ee][Aa][Dd]|[Ii][Nn]) SORT=read ;; # READ(IN)
 [Ww][Rr][Ii][Tt][Ee]|[Oo][Uu][Tt]) SORT=write ;; # WRITE(OUT)
 *) die "-k col must be one of: total read write in out"
+esac
+
+#
+# Validate `-L sec' option
+#
+case "$TIMEOUT_LSOF" in
+"") usage "missing -L argument" ;; # NOTREACHED
+*[smhd])
+	case "${TIMEOUT_LSOF%?}" in
+	""|*[!0-9.]*|*.*.*|.) die "bad -L argument" ;;
+	esac
+	;;
+*[!0-9.]*|*.*.*|.) die "bad -L argument" ;;
 esac
 
 #

@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-06-13 16:28:48 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-06-26 21:16:25 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -40,7 +40,7 @@ DEFAULT_SORT=total # Choices (case-insensitive): total read write in out
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.7 $'
+VERSION='$Version: 8.7.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -124,9 +124,9 @@ usage()
 
 	printf "Usage: %s [OPTIONS] [--] [comm]\n" "$pgm"
 	printf "Options:\n"
+	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-a" "Show aggregate subtotals."
 	printf "$optfmt" "-b" "Show bytes instead of bandwidth."
-	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-C" "Always enable color."
 	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-D" "Enable debugger."

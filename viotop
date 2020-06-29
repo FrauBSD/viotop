@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-06-26 21:16:25 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-06-29 15:52:35 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -12,7 +12,12 @@
 # For example, `-u' asks viotop to display the ``user view'' where statistics
 # displayed are on a per-user basis.
 #
+# The ``mode'' is the user's choice between viewing data input/output (this is
+# the default) and metadata operations (-m). When presenting data in JSON (-j)
+# use -M to get both data and metadata options.
+#
 # The code is broken down into:
+# 	- Mode selection (user choice)
 # 	- View selection (user choice)
 # 	- Filter selection (user choice)
 # 	- Inspection of running system
@@ -40,7 +45,7 @@ DEFAULT_SORT=total # Choices (case-insensitive): total read write in out
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 8.7.1 $'
+VERSION='$Version: 9.0 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -63,6 +68,7 @@ FILTER_TYPE=				# -T type
 FILTER_USER=				# -U user
 IGNORE_RUNNING=				# -I
 INTERVAL=$DEFAULT_INTERVAL		# -i sec
+MODE=data				# vs `meta' (-m) or `both' (-M)
 NO_NAMES=				# -n
 NSAMPLES=				# -N num
 OUTPUT_JSON=				# -j
@@ -70,7 +76,7 @@ QUIET=					# -q
 RAW_VIEW=				# -r
 REDACT=${VIOTOP_REDACT:+1}		# -R
 SHOW_AGGREGATES=			# -a
-SHOW_BYTES=				# -b
+SHOW_BASIC=				# -b
 SORT=$DEFAULT_SORT			# -k col
 TIMEOUT_LSOF=				# -L time
 VIEW_AGGREGATES=			# -A
@@ -84,8 +90,10 @@ WIDE_VIEW=				# -w
 #
 # Miscellaneous
 #
+CB='}'
 CONS=1
 [ -t 1 ] || CONS= COLOR= # stdout is not a tty
+DQ='"'
 FILTER_COMM=
 FILTER_GID=
 FILTER_UID=
@@ -95,6 +103,8 @@ INTERVAL_PROBE= # Calculated
 INTERVAL_SECONDS= # Raw value for awk
 MAP_ID_FOLLOW=
 MAP_ID_TRACE=
+MODE_DATA=
+MODE_META=
 OPEN_CONDITION=
 OPEN_FDS=
 VIEW=
@@ -126,7 +136,7 @@ usage()
 	printf "Options:\n"
 	printf "$optfmt" "-A" "Only show aggregate subtotals."
 	printf "$optfmt" "-a" "Show aggregate subtotals."
-	printf "$optfmt" "-b" "Show bytes instead of bandwidth."
+	printf "$optfmt" "-b" "Show basic counts instead of rates."
 	printf "$optfmt" "-C" "Always enable color."
 	printf "$optfmt" "-c" "View read/write activity by command name."
 	printf "$optfmt" "-D" "Enable debugger."
@@ -137,10 +147,14 @@ usage()
 	printf "$optfmt" "-I" "Ignore already-running processes."
 	printf "$optfmt" "-i sec" \
 		"Set interval seconds. Default \`$DEFAULT_INTERVAL'."
-	printf "$optfmt" "-J" "Output most JSON data. Same as \`-ajgtu'."
+	printf "$optfmt" "-J" "Output most JSON data. Same as \`-agjMtu'."
 	printf "$optfmt" "-j" "Output JSON formatted data."
 	printf "$optfmt" "-k col" "Sort column (default \`$DEFAULT_SORT')."
-	printf "$optfmt" "-L time" "lsof(8) timeout duration. Default none."
+	printf "$optfmt" "-L time" \
+		"lsof(8) timeout duration. Default is no timeout."
+	printf "$optfmt" "-M" \
+		"Show metadata statistics (requires \`-j'). Implies \`-a'."
+	printf "$optfmt" "-m" "Only show metadata statistics. Implies \`-a'."
 	printf "$optfmt" "-N num" "Perform num samples and exit."
 	printf "$optfmt" "-n" "Do not attempt to map uid/gid to names."
 	printf "$optfmt" "-o" "Force non-console output."
@@ -341,7 +355,7 @@ resize()
 {
 	local size
 	if [ -e /dev/tty ]; then
-		size=$( stty size < /dev/tty 2> /dev/null )
+		size=$( { stty size < /dev/tty; } 2> /dev/null )
 	else
 		size=$( stty size 2> /dev/null )
 	fi
@@ -353,11 +367,11 @@ resize()
 #
 # Process command-line options
 #
-while getopts AabCcDdfG:ghIi:Jjk:L:N:noP:pqRrT:tU:uvw flag; do
+while getopts AabCcDdfG:ghIi:Jjk:L:MmN:noP:pqRrT:tU:uvw flag; do
 	case "$flag" in
 	A) VIEW_AGGREGATES=1 SHOW_AGGREGATES=1 ;;
 	a) SHOW_AGGREGATES=1 ;;
-	b) SHOW_BYTES=1 ;;
+	b) SHOW_BASIC=1 ;;
 	C) COLOR=1 ;;
 	c) VIEW=COMM VIEW_COMM=1 ;;
 	D) DEBUGGER=1 RAW_VIEW=1 ;;
@@ -367,11 +381,13 @@ while getopts AabCcDdfG:ghIi:Jjk:L:N:noP:pqRrT:tU:uvw flag; do
 	g) VIEW=GROUP VIEW_GROUP=1 ;;
 	I) IGNORE_RUNNING=1 ;;
 	i) INTERVAL="$OPTARG" ;;
-	J) VIEW=JSON OUTPUT_JSON=1 SHOW_AGGREGATES=1 \
+	J) VIEW=JSON OUTPUT_JSON=1 SHOW_AGGREGATES=1 MODE=both \
 		VIEW_GROUP=1 VIEW_TYPE=1 VIEW_USER=1 ;;
 	j) OUTPUT_JSON=1 ;;
 	k) SORT="$OPTARG" ;;
 	L) TIMEOUT_LSOF="$OPTARG" ;;
+	M) MODE=both SHOW_AGGREGATES=1 ;;
+	m) MODE=meta SHOW_AGGREGATES=1 ;;
 	N) [ "$OPTARG" ] || usage "-N option requires an argument" # NOTREACHED
 		NSAMPLES="$OPTARG" ;;
 	n) NO_NAMES=1 ;;
@@ -403,10 +419,13 @@ FILTER_COMM="$1"
 #
 # Prevent non-functional option combinations
 #
-if [ "$SHOW_BYTES" ]; then
+if [ "$SHOW_BASIC" ]; then
 	[ "$VIEW" != "JSON" ] || die "-b cannot be combined with -J"
 	[ ! "$OUTPUT_JSON" ] || die "-b cannot be combined with -j"
 fi
+case "$MODE" in
+both) [ "$OUTPUT_JSON" ] || die "-M requires -j or -J" ;;
+esac
 case "$VIEW" in
 PID) [ "$OUTPUT_JSON" ] || die "-p requires either -j or -J" ;;
 esac
@@ -465,25 +484,54 @@ esac
 # Validate `-k col' option
 # ST: SORTING
 #
-case "$SORT" in
-"") usage "missing -k argument" ;; # NOTREACHED
-[Tt][Oo][Tt][Aa][Ll]) SORT=total ;; # TOTAL
-[Rr][Ee][Aa][Dd]|[Ii][Nn]) SORT=read ;; # READ(IN)
-[Ww][Rr][Ii][Tt][Ee]|[Oo][Uu][Tt]) SORT=write ;; # WRITE(OUT)
-*) die "-k col must be one of: total read write in out"
-esac
+if [ "$MODE" = data ]; then
+	case "$SORT" in
+	"") usage "missing -k argument" ;; # NOTREACHED
+	[Tt][Oo][Tt][Aa][Ll]) SORT=total ;; # TOTAL
+	[Rr][Ee][Aa][Dd]|[Ii][Nn]) SORT=read ;; # READ(IN)
+	[Ww][Rr][Ii][Tt][Ee]|[Oo][Uu][Tt]) SORT=write ;; # WRITE(OUT)
+	*) die "-k col must be one of: total read write in out"
+	esac
+elif [ "$MODE" = meta ]; then
+	case "$SORT" in
+	"") usage "missing -k argument" ;; # NOTREACHED
+	[Tt][Oo][Tt][Aa][Ll]) SORT=total ;; # TOTAL
+	[Gg][Oo][Oo][Dd]) SORT=good ;; # STAT(GOOD)
+	[Ff][Aa][Ii][Ll]) SORT=fail ;; # STAT(FAIL)
+	*) die "-k col must be one of: total good fail"
+	esac
+elif [ "$MODE" = both ]; then
+	case "$SORT" in
+	"") usage "missing -k argument" ;; # NOTREACHED
+	[Tt][Oo][Tt][Aa][Ll]) SORT=total ;; # TOTAL
+	[Rr][Ee][Aa][Dd]|[Ii][Nn]) SORT=read ;; # READ(IN)
+	[Ww][Rr][Ii][Tt][Ee]|[Oo][Uu][Tt]) SORT=write ;; # WRITE(OUT)
+	[Gg][Oo][Oo][Dd]) SORT=good ;; # STAT(GOOD)
+	[Ff][Aa][Ii][Ll]) SORT=fail ;; # STAT(FAIL)
+	*) die "-k col must be one of: total read write in out good fail"
+	esac
+fi
 
 #
 # Validate `-L sec' option
 #
 case "$TIMEOUT_LSOF" in
-"") usage "missing -L argument" ;; # NOTREACHED
+"") : ok ;;
 *[smhd])
 	case "${TIMEOUT_LSOF%?}" in
 	""|*[!0-9.]*|*.*.*|.) die "bad -L argument" ;;
 	esac
 	;;
 *[!0-9.]*|*.*.*|.) die "bad -L argument" ;;
+esac
+
+#
+# Process `-m' and `-M' options
+#
+case "$MODE" in
+both) MODE_DATA=1 MODE_META=1 ;;
+data) MODE_DATA=1 MODE_META= ;;
+meta) MODE_META=1 MODE_DATA= ;;
 esac
 
 #
@@ -579,7 +627,7 @@ esac
 			function del(re){gsub(re,"")}
 			function space(re){gsub(re," ")}
 			function check_group(pid,        file, gid, L) {
-				if (filter_group == "") return 1 # OK
+				if (filter_group == "") return 1 # STAT(GOOD)
 				gid = ""
 				file = sprintf("/proc/%d/status", pid)
 				while (getline L < file > 0) {
@@ -593,7 +641,7 @@ esac
 				return gid == filter_group
 			}
 			function check_user(pid,        file, uid, L) {
-				if (filter_user == "") return 1 # OK
+				if (filter_user == "") return 1 # STAT(GOOD)
 				uid = ""
 				file = sprintf("/proc/%d/status", pid)
 				while (getline L < file > 0) {
@@ -962,11 +1010,11 @@ ${FILTER_FOLLOW:+
 		//
 		if ($FORK_CONDITION) {
 			@follow[\$parent_pid] = 1;
-		\}
+		$CB
 		if (@follow[\$parent_pid]) {
 			@follow[\$child_pid] = 1;
-		\}
-	\}
+		$CB
+	$CB
 
 	////////////////////////////////////////////////// EXIT PROBE
 
@@ -979,10 +1027,10 @@ ${FILTER_FOLLOW:+
 		//
 
 		delete(@follow[\$pid]);
-	\}
+	$CB
 }
 
-	////////////////////////////////////////////////// OPEN PROBES
+	////////////////////////////////////////////////// OPEN ENTER PROBES
 
 	/*
 	 * open(2)/openat(2) [enter] probes
@@ -1003,6 +1051,8 @@ $( for func in sys_enter_open sys_enter_openat; do
 
 PROBE
 done )
+
+	////////////////////////////////////////////////// VFS_OPEN PROBE
 
 	/*
 	 * NB: vfs_open() always called after open(2)/openat(2)
@@ -1044,6 +1094,8 @@ fi )
 PROBE
 done )
 	}
+
+	////////////////////////////////////////////////// OPEN EXIT PROBES
 
 	/*
 	 * open(2)/openat(2) [exit] probes
@@ -1165,10 +1217,210 @@ done )
 	/@trace[pid, args->fd] != ""/
 	{
 		\$fd = args->fd;
-		\$fstype = @trace[pid, \$fd];
 
 		delete(@trace[pid, \$fd]); // Stop tracing read/write on fd
 	}
+
+	////////////////////////////////////////////////// FSTAT PROBES
+
+	/*
+	 * fstat(2,3) probes
+	 */
+
+${MODE_META:+
+	kprobe:vfs_fstat
+	/@trace[pid, arg0] != $DQ$DQ/
+	{
+		\$fd = arg0;
+
+		// Pass args to kretprobe
+		@fstat_exit[tid] = 1;
+		@fstat_fd[tid] = \$fd;
+	$CB
+
+	kretprobe:vfs_fstat
+	/@fstat_exit[tid]/
+	{
+		\$fd = @fstat_fd[tid];
+		\$ret = retval;
+		\$fstype = @trace[pid, \$fd];
+
+		// ST: VIEWS TRACEDATA
+		if (\$fstype != $DQ$DQ && \$ret == 0) {
+${VIEW_COMM:+
+			@stat_good_comm[\$fstype, comm] = count();
+}
+${VIEW_GROUP:+
+			@stat_good_group[\$fstype, gid] = count();
+}
+${VIEW_PID:+
+			@stat_good_pid[\$fstype, pid, uid, comm] = count();
+}
+${VIEW_TYPE:+
+			@stat_good_type[\$fstype] = count();
+}
+${VIEW_USER:+
+			@stat_good_user[\$fstype, uid] = count();
+}
+		$CB
+
+		// ST: VIEWS TRACEDATA
+		if (\$ret != 0) {
+			\$fstype = $DQ*$DQ;
+${VIEW_COMM:+
+			@stat_fail_comm[\$fstype, comm] = count();
+}
+${VIEW_GROUP:+
+			@stat_fail_group[\$fstype, gid] = count();
+}
+${VIEW_PID:+
+			@stat_fail_pid[\$fstype, pid, uid, comm] = count();
+}
+${VIEW_TYPE:+
+			@stat_fail_type[\$fstype] = count();
+}
+${VIEW_USER:+
+			@stat_fail_user[\$fstype, uid] = count();
+}
+		$CB
+
+		// Args from kprobe
+		delete(@fstat_exit[tid]);
+		delete(@fstat_fd[tid]);
+	$CB
+}
+
+	////////////////////////////////////////////////// STAT ENTER PROBES
+
+	/*
+	 * stat(2,3)/lstat(2,3) [enter] probes
+	 */
+
+${MODE_META:+$( for func in sys_enter_newstat sys_enter_newlstat; do
+	name=${func#*enter_}
+	cat <<PROBE
+	tracepoint:syscalls:$func
+	${OPEN_CONDITION:+/$OPEN_CONDITION/
+	}{
+		// Free vfs_getattr flags
+		if (str(args->filename) != "" && comm != "bpftrace")
+		{
+			delete(@vfs_${name}_trace[tid]);
+			@vfs_$name[tid] = 1;
+		}
+	}
+
+PROBE
+done )}
+
+	////////////////////////////////////////////////// VFS_GETATTR PROBE
+
+	/*
+	 * NB: vfs_getattr() called after successful translation of
+	 * char * to struct path * in vfs_fstatat by user_path_at().
+	 */
+
+${MODE_META:+
+	kprobe:vfs_getattr
+	/comm != ${DQ}bpftrace$DQ/
+	{
+		//
+		// Extract the filesystem type from mount superblock
+		//
+		\$path = (struct path *)arg0;
+		\$mnt = (struct vfsmount *)\$path->mnt;
+		\$mnt_sb = (struct super_block *)\$mnt->mnt_sb;
+		\$type = (struct file_system_type *)\$mnt_sb->s_type;
+		\$fstype = \$type->name;
+
+$( for func in sys_enter_newstat sys_enter_newlstat; do
+	name=${func#*enter_}
+	exit_func=${func%%enter_*}exit_$name
+	cat <<PROBE
+		if (@vfs_$name[tid])
+		{
+			delete(@vfs_$name[tid]); // Flag from $func
+
+			//
+			// Test filesystem type (for $exit_func)
+			//
+$( if [ "$FILTER_TYPE" ]; then
+			awk 'sub(/^\\/,"")||1' <<-FILTER_TYPE
+\			if (str(\$fstype, ${#FILTER_TYPE}) == "$FILTER_TYPE") {
+\				@vfs_${name}_trace[tid] = str(\$fstype);
+\			}
+			FILTER_TYPE
+else
+			awk 'sub(/^\\/,"")||1' <<-FILTER_TYPE
+\			@vfs_${name}_trace[tid] = str(\$fstype);
+			FILTER_TYPE
+fi )
+		}
+PROBE
+done )
+	$CB
+}
+
+	////////////////////////////////////////////////// STAT EXIT PROBES
+
+	/*
+	 * stat(2,3)/lstat(2,3) [exit] probes
+	 */
+
+${MODE_META:+$( for func in sys_exit_newstat sys_exit_newlstat; do
+	name=${func#*exit_}
+	cat <<PROBE
+	tracepoint:syscalls:$func
+	/comm != ${DQ}bpftrace$DQ/
+	{
+		\$ret = args->ret;
+		\$fstype = @vfs_${name}_trace[tid];
+
+		// ST: VIEWS TRACEDATA
+		if (\$fstype != $DQ$DQ) {
+${VIEW_COMM:+
+			@stat_good_comm[\$fstype, comm] = count();
+}
+${VIEW_GROUP:+
+			@stat_good_group[\$fstype, gid] = count();
+}
+${VIEW_PID:+
+			@stat_good_pid[\$fstype, pid, uid, comm] = count();
+}
+${VIEW_TYPE:+
+			@stat_good_type[\$fstype] = count();
+}
+${VIEW_USER:+
+			@stat_good_user[\$fstype, uid] = count();
+}
+		$CB
+
+		// ST: VIEWS TRACEDATA
+		if (\$ret != 0) {
+			\$fstype = $DQ*$DQ;
+${VIEW_COMM:+
+			@stat_fail_comm[\$fstype, comm] = count();
+}
+${VIEW_GROUP:+
+			@stat_fail_group[\$fstype, gid] = count();
+}
+${VIEW_PID:+
+			@stat_fail_pid[\$fstype, pid, uid, comm] = count();
+}
+${VIEW_TYPE:+
+			@stat_fail_type[\$fstype] = count();
+}
+${VIEW_USER:+
+			@stat_fail_user[\$fstype, uid] = count();
+}
+		$CB
+
+		delete(@vfs_$name[tid]); // Flag from enter for vfs_getattr
+		delete(@vfs_${name}_trace[tid]); // Flag from vfs_getattr
+	}
+
+PROBE
+done )}
 
 	////////////////////////////////////////////////// READ PROBES
 
@@ -1176,8 +1428,9 @@ done )
 	 * read(2) probes
 	 */
 
+${MODE_DATA:+
 	tracepoint:syscalls:sys_enter_read
-	/@trace[pid, args->fd] != ""/
+	/@trace[pid, args->fd] != $DQ$DQ/
 	{
 		\$fd = args->fd;
 		\$count = args->count;
@@ -1186,7 +1439,7 @@ done )
 		@read_exit[tid] = 1;
 		@read_fd[tid] = \$fd;
 		@read_count[pid, \$fd] = \$count;
-	}
+	$CB
 
 	tracepoint:syscalls:sys_exit_read
 	/@read_exit[tid]/
@@ -1219,8 +1472,9 @@ ${VIEW_TYPE:+
 ${VIEW_USER:+
 			@rd_user[\$fstype, uid] = sum(\$count);
 }
-		}
-	}
+		$CB
+	$CB
+}
 
 	////////////////////////////////////////////////// WRITE PROBES
 
@@ -1228,8 +1482,9 @@ ${VIEW_USER:+
 	 * write(2) probes
 	 */
 
+${MODE_DATA:+
 	tracepoint:syscalls:sys_enter_write
-	/@trace[pid, args->fd] != ""/
+	/@trace[pid, args->fd] != $DQ$DQ/
 	{
 		\$fd = args->fd;
 		\$count = args->count;
@@ -1238,7 +1493,7 @@ ${VIEW_USER:+
 		@write_exit[tid] = 1;
 		@write_fd[tid] = \$fd;
 		@write_count[pid, \$fd] = \$count;
-	}
+	$CB
 
 	tracepoint:syscalls:sys_exit_write
 	/@write_exit[tid]/
@@ -1271,8 +1526,9 @@ ${VIEW_TYPE:+
 ${VIEW_USER:+
 			@wr_user[\$fstype, uid] = sum(\$count);
 }
-		}
-	}
+		$CB
+	$CB
+}
 
 	////////////////////////////////////////////////// INTERVAL PROBE
 
@@ -1283,34 +1539,74 @@ ${VIEW_USER:+
 
 		// ST: VIEWS
 ${VIEW_COMM:+
+	${MODE_DATA:+
 		print(@rd_comm);
 		print(@wr_comm);
 		clear(@rd_comm);
 		clear(@wr_comm);
+	}
+	${MODE_META:+
+		print(@stat_fail_comm);
+		print(@stat_good_comm);
+		clear(@stat_fail_comm);
+		clear(@stat_good_comm);
+	}
 }
 ${VIEW_GROUP:+
+	${MODE_DATA:+
 		print(@rd_group);
 		print(@wr_group);
 		clear(@rd_group);
 		clear(@wr_group);
+	}
+	${MODE_META:+
+		print(@stat_fail_group);
+		print(@stat_good_group);
+		clear(@stat_fail_group);
+		clear(@stat_good_group);
+	}
 }
 ${VIEW_PID:+
+	${MODE_DATA:+
 		print(@rd_pid);
 		print(@wr_pid);
 		clear(@rd_pid);
 		clear(@wr_pid);
+	}
+	${MODE_META:+
+		print(@stat_fail_pid);
+		print(@stat_good_pid);
+		clear(@stat_fail_pid);
+		clear(@stat_good_pid);
+	}
 }
 ${VIEW_TYPE:+
+	${MODE_DATA:+
 		print(@rd_type);
 		print(@wr_type);
 		clear(@rd_type);
 		clear(@wr_type);
+	}
+	${MODE_META:+
+		print(@stat_fail_type);
+		print(@stat_good_type);
+		clear(@stat_fail_type);
+		clear(@stat_good_type);
+	}
 }
 ${VIEW_USER:+
+	${MODE_DATA:+
 		print(@rd_user);
 		print(@wr_user);
 		clear(@rd_user);
 		clear(@wr_user);
+	}
+	${MODE_META:+
+		print(@stat_fail_user);
+		print(@stat_good_user);
+		clear(@stat_fail_user);
+		clear(@stat_good_user);
+	}
 }
 
 		printf("---\n");
@@ -1325,41 +1621,82 @@ ${FILTER_FOLLOW:+
 }
 		// ST: VIEWS
 ${VIEW_COMM:+
+	${MODE_DATA:+
 		clear(@rd_comm);
 		clear(@wr_comm);
+	}
+	${MODE_META:+
+		clear(@stat_fail_comm);
+		clear(@stat_good_comm);
+	}
 }
 ${VIEW_GROUP:+
+	${MODE_DATA:+
 		clear(@rd_group);
 		clear(@wr_group);
+	}
+	${MODE_META:+
+		clear(@stat_fail_group);
+		clear(@stat_good_group);
+	}
 }
 ${VIEW_PID:+
+	${MODE_DATA:+
 		clear(@rd_pid);
 		clear(@wr_pid);
+	}
+	${MODE_META:+
+		clear(@stat_fail_pid);
+		clear(@stat_good_pid);
+	}
 }
 ${VIEW_TYPE:+
+	${MODE_DATA:+
 		clear(@rd_type);
 		clear(@wr_type);
+	}
+	${MODE_META:+
+		clear(@stat_fail_type);
+		clear(@stat_good_type);
+	}
 }
 ${VIEW_USER:+
+	${MODE_DATA:+
 		clear(@rd_user);
 		clear(@wr_user);
+	}
+	${MODE_META:+
+		clear(@stat_fail_user);
+		clear(@stat_good_user);
+	}
 }
 
 		clear(@dup_fd);
+${MODE_DATA:+
 		clear(@read_count);
 		clear(@read_exit);
 		clear(@read_fd);
+}
 		clear(@trace);
-$( for func in sys_enter_open sys_enter_openat; do
+$( for func in \
+	sys_enter_open \
+	sys_enter_openat \
+	${MODE_META:+
+		sys_enter_newstat
+		sys_enter_newlstat
+	} \
+; do
 		name=${func#*enter_}
 		awk 'sub(/^\\/,"")||1' <<-CLEAR
 \		clear(@vfs_$name);
 \		clear(@vfs_${name}_trace);
 		CLEAR
 done )
+${MODE_DATA:+
 		clear(@write_count);
 		clear(@write_exit);
 		clear(@write_fd);
+}
 	}
 
 	//////////////////////////////////////////////////////////////////////
@@ -1530,10 +1867,13 @@ EOF
 } | awk -v color=${COLOR:-0} \
 	-v cols=$cols \
 	-v cons=${CONS:-0} \
+	-v data_mode=${MODE_DATA:-0} \
 	-v debug=${DEBUG:-0} \
 	-v debugger=${DEBUGGER:-0} \
 	-v filter_type=${FILTER_TYPE:+1} \
 	-v interval=$INTERVAL_SECONDS \
+	-v meta_mode=${MODE_META:-0} \
+	-v mode="$MODE" \
 	-v no_names=${NO_NAMES:-0} \
 	-v nsamples=${NSAMPLES:-0} \
 	-v output_json=${OUTPUT_JSON:-0} \
@@ -1543,7 +1883,7 @@ EOF
 	-v redact=${REDACT:-0} \
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
-	-v show_bytes=${SHOW_BYTES:-0} \
+	-v show_basic=${SHOW_BASIC:-0} \
 	-v stderr=/dev/stderr \
 	-v view="$VIEW" \
 	-v view_aggregates=${VIEW_AGGREGATES:-0} \
@@ -1649,6 +1989,9 @@ EOF
 
 	function debug1(fmt,a1) { if (debugger) printf fmt "\n", a1 }
 	function debug2(fmt,a1,a2) { if (debugger) printf fmt "\n", a1, a2 }
+	function debug3(fmt,a1,a2,a3) {
+		if (debugger) printf fmt "\n", a1, a2, a3
+	}
 	function buffer_add(text) { BUFFER = BUFFER text }
 
 	function print_buffer()
@@ -1719,7 +2062,8 @@ EOF
 		#
 		# NB: bar_size = size of bar column (if shown)
 		# NB: commsz = size of COMM column
-		# NB: dsz = size of TOTAL, READ(IN), WRITE(OUT) data columns
+		# NB: dsz = size of TOTAL, READ(IN), WRITE(OUT), STAT(GOOD),
+		#     and STAT(FAIL) data columns
 		# NB: pidsz = size of PID column
 		# NB: vfssz = size of VFS column
 		# NB: vsz = size of VIEW column ("view size")
@@ -1734,7 +2078,13 @@ EOF
 
 		show_bar_column = 1
 		show_comm_column = 1
-		show_rw_columns = 1
+		if (mode == "data") {
+			show_rw_columns = 1
+			show_stat_columns = 0
+		} else if (mode == "meta") {
+			show_rw_columns = 0
+			show_stat_columns = 1
+		}
 		show_user_column = 1
 		show_vfs_column = 1
 
@@ -1743,7 +2093,7 @@ EOF
 		vsz_min = length(view)
 		commsz = 15
 		commsz_min = length("COMM")
-		dsz = show_bytes ? 10 : 12
+		dsz = show_basic ? 10 : 12
 		bar_size_fixed_max = 21
 		bar_size_fixed_min = 11
 
@@ -1776,15 +2126,15 @@ EOF
 			commsz_cols2 += dsz # TOTAL
 			commsz_cols3 += dsz # TOTAL
 			vsz_cols2 += dsz # TOTAL
-			bar_min1 += dsz + 1 # READ(IN) + space
-			commsz_cols1 += dsz + 1 # READ(IN) + space
+			bar_min1 += dsz + 1 # READ(IN)/STAT(GOOD) + space
+			commsz_cols1 += dsz + 1 # READ(IN)/STAT(GOOD) + space
 			vsz_cols1 = bar_min2 = bar_min1
 			bar_min1 += bar_size_fixed_min + 1 # small bar + space
 			bar_min2 += bar_size_fixed_max + 1 # bigger bar + space
-			bar_min1 += dsz # WRITE(OUT)
-			bar_min2 += dsz # WRITE(OUT)
-			vsz_cols1 += dsz # WRITE(OUT)
-			commsz_cols1 += dsz # WRITE(OUT)
+			bar_min1 += dsz # WRITE(OUT)/STAT(FAIL)
+			bar_min2 += dsz # WRITE(OUT)/STAT(FAIL)
+			vsz_cols1 += dsz # WRITE(OUT)/STAT(FAIL)
+			commsz_cols1 += dsz # WRITE(OUT)/STAT(FAIL)
 
 			#
 			# Calculate fixed bar width based on terminal width
@@ -1819,18 +2169,34 @@ EOF
 				commsz = commsz_min
 				commsz += cols - commsz_cols1
 			} else if (cols >= commsz_cols2) {
-				show_rw_columns = 0
+				if (mode == "data") {
+					show_rw_columns = 0
+				} else if (mode == "meta") {
+					show_stat_columns = 0
+				}
 				wv = 1
 			} else if (cols >= commsz_cols3) {
-				show_rw_columns = 0
+				if (mode == "data") {
+					show_rw_columns = 0
+				} else if (mode == "meta") {
+					show_stat_columns = 0
+				}
 				wv = 1
 				commsz -= commsz_cols2 - cols
 			} else if (cols >= vsz_cols2) {
-				show_rw_columns = 0
+				if (mode == "data") {
+					show_rw_columns = 0
+				} else if (mode == "meta") {
+					show_stat_columns = 0
+				}
 				show_comm_column = 0
 				wv = 1
 			} else {
-				show_rw_columns = 0
+				if (mode == "data") {
+					show_rw_columns = 0
+				} else if (mode == "meta") {
+					show_stat_columns = 0
+				}
 				show_comm_column = 0
 				show_user_column = 0
 			}
@@ -1850,13 +2216,13 @@ EOF
 			bar_min1 += vsz_min + 1 # VIEW + space
 			bar_min1 += dsz + 1 # TOTAL + space
 			vsz_cols2 = bar_min1
-			bar_min1 += dsz + 1 # READ(IN) + space
+			bar_min1 += dsz + 1 # READ(IN)/STAT(GOOD) + space
 			vsz_cols1 = bar_min2 = bar_min1
 			bar_min1 += bar_size_fixed_min + 1 # small bar + space
 			bar_min2 += bar_size_fixed_max + 1 # bigger bar + space
-			bar_min1 += dsz # WRITE(OUT)
-			bar_min2 += dsz # WRITE(OUT)
-			vsz_cols1 += dsz # WRITE(OUT)
+			bar_min1 += dsz # WRITE(OUT)/STAT(FAIL)
+			bar_min2 += dsz # WRITE(OUT)/STAT(FAIL)
+			vsz_cols1 += dsz # WRITE(OUT)/STAT(FAIL)
 
 			#
 			# Calculate fixed bar width based on terminal width
@@ -1888,10 +2254,18 @@ EOF
 			} else if (cols >= vsz_cols1) {
 				vsz_fixed += cols - vsz_cols1
 			} else if (cols >= vsz_cols2) {
-				show_rw_columns = 0
+				if (mode == "data") {
+					show_rw_columns = 0
+				} else if (mode == "meta") {
+					show_stat_columns = 0
+				}
 				wv = 1
 			} else {
-				show_rw_columns = 0
+				if (mode == "data") {
+					show_rw_columns = 0
+				} else if (mode == "meta") {
+					show_stat_columns = 0
+				}
 			}
 		}
 
@@ -1920,12 +2294,14 @@ EOF
 				vsz -= 0 + 1 # %-*s VIEW + space
 			}
 			vsz -= dsz # TOTAL
-			if (show_rw_columns) {
-				vsz -= 1 + dsz + 1 # space + READ(IN) + space
+			if (show_rw_columns || show_stat_columns) {
+				# space + READ(IN)/STAT(GOOD) + space
+				vsz -= 1 + dsz + 1
+
 				if (bar_size > 0) {
 					vsz -= bar_size + 1 # bar + space
 				}
-				vsz -= dsz # WRITE(OUT)
+				vsz -= dsz # WRITE(OUT)/STAT(FAIL)
 			}
 		} else if (show_bar_column) {
 			# Fixed-width
@@ -1944,9 +2320,9 @@ EOF
 				bar_size -= vsz + 1 # %[-]*s VIEW + space
 			}
 			bar_size -= dsz + 1 # TOTAL + space
-			bar_size -= dsz + 1 # READ(IN) + space
+			bar_size -= dsz + 1 # READ(IN)/STAT(GOOD) + space
 			bar_size -= 0 + 1 # variable-width bar + space
-			bar_size -= dsz # WRITE(OUT)
+			bar_size -= dsz # WRITE(OUT)/STAT(FAIL)
 		} else {
 			# Fixed-width
 			vsz = vsz_fixed
@@ -1986,11 +2362,12 @@ EOF
 
 		fmt = fmt " %" dsz "s" # TOTAL
 		fmtsz += 1 + dsz
-		if (show_rw_columns) {
+		if (show_rw_columns || show_stat_columns) {
+			# READ(IN)/STAT(GOOD)
 			if (color) {
-				fmt = fmt " " cyan "%" dsz "s" # READ(IN)
+				fmt = fmt " " cyan "%" dsz "s"
 			} else {
-				fmt = fmt " %" dsz "s" # READ(IN)
+				fmt = fmt " %" dsz "s"
 			}
 			fmtsz += 1 + dsz
 		}
@@ -1999,20 +2376,22 @@ EOF
 			full_bar = bar_size
 			bar_size = int(bar_size / 2)
 			if (bar_size * 2 == full_bar) bar_size--
-			fmt = fmt " %*s" # read_bar
+			fmt = fmt " %*s" # read/good bar
+			# write/fail bar
 			if (color) {
-				fmt = fmt fgreset "|" red "%-*s" # write_bar
+				fmt = fmt fgreset "|" red "%-*s"
 			} else {
-				fmt = fmt "|%-*s" # write_bar
+				fmt = fmt "|%-*s"
 			}
 			fmtsz += 1 + bar_size + 1 + bar_size
-			fmt = fmt " %-" dsz "s" # WRITE(OUT)
+			fmt = fmt " %-" dsz "s" # WRITE(OUT)/STAT(FAIL)
 			fmtsz += 1 + dsz
-		} else if (show_rw_columns) {
+		} else if (show_rw_columns || show_stat_columns) {
+			# WRITE(OUT)/STAT(FAIL)
 			if (color) {
-				fmt = fmt " " red "%" dsz "s" # WRITE(OUT)
+				fmt = fmt " " red "%" dsz "s"
 			} else {
-				fmt = fmt " %" dsz "s" # WRITE(OUT)
+				fmt = fmt " %" dsz "s"
 			}
 			fmtsz += 1 + dsz
 		}
@@ -2092,10 +2471,18 @@ EOF
 		delete map_views
 		delete view_list
 
-		delete map_key_read
-		delete map_key_write
-		delete map_view_read
-		delete map_view_write
+		if (data_mode) {
+			delete map_key_read
+			delete map_key_write
+			delete map_view_read
+			delete map_view_write
+		}
+		if (meta_mode) {
+			delete map_key_stat_good
+			delete map_key_stat_fail
+			delete map_view_stat_good
+			delete map_view_stat_fail
+		}
 	}
 
 	function clear_buffer()
@@ -2167,7 +2554,7 @@ EOF
 					total, read, write)
 			} else if (show3) {
 				str = sprintf(fmt, vfs, arg1, arg2, arg3,
-					total)
+					total, read, write)
 			} else if (show2) {
 				str = sprintf(fmt, vfs, arg1, arg2, total)
 			} else {
@@ -2193,7 +2580,7 @@ EOF
 	}
 
 	function buffer_add_header(        prefix, suffix,
-		presz, n, fmt, dtfmt, dtsz, ifmt, sz, str)
+		presz, n, fmt, dtfmt, dtsz, ifmt, sz, str, colnam1, colnam2)
 	{
 		if (output_json) return
 		ifmt = "%.3fs"
@@ -2223,14 +2610,21 @@ EOF
 		suffix = color ? fgreset noinv : ""
 		empty_bar = ""
 		# ST: VIEWS
+		if (mode == "data") {
+			colnam1 = "READ(IN)"
+			colnam2 = "WRITE(OUT)"
+		} else if (mode == "meta") {
+			colnam1 = "STAT(GOOD)"
+			colnam2 = "STAT(FAIL)"
+		}
 		if (view == "PID") {
 			buffer_add3("VFS", view, "USER", "COMM", "TOTAL",
-				"READ(IN)", empty_bar, empty_bar, "WRITE(OUT)",
+				colnam1, empty_bar, empty_bar, colnam2,
 				prefix, suffix)
 		} else {
 			buffer_add1("VFS", view == "TYPE" ? "VFS" : view,
-				"TOTAL", "READ(IN)", empty_bar, empty_bar,
-				"WRITE(OUT)", prefix, suffix)
+				"TOTAL", colnam1, empty_bar, empty_bar,
+				colnam2, prefix, suffix)
 		}
 	}
 
@@ -2264,8 +2658,17 @@ EOF
 		# ST: TRACEDATA
 		if (!match($0, /^@[^\[]*\[/)) return 0
 		map_name = substr($0, RSTART + 1, RLENGTH - 2)
-		map_view = substr(map_name, 4)
-		map_op = substr(map_name, 1, 2) # rd/wr
+		if (map_name ~ /^(rd_|wr_)/) {
+			map_view = substr(map_name, 4)
+			map_op = substr(map_name, 1, 2) # rd/wr
+		} else if (map_name ~ /^(stat_fail_|stat_good_)/) {
+			map_view = substr(map_name, 11)
+			map_op = substr(map_name, 1, 9)
+		} else {
+			map_view = ""
+			map_op = ""
+		}
+		debug2("+ map_view=[%s] map_op=[%s]", map_view, map_op)
 
 		if (!match($0, /\[.*\]:/)) return 0
 		map_key = substr($0, RSTART + 1, RLENGTH - 3)
@@ -2314,31 +2717,81 @@ EOF
 		#
 
 		if (map_op == "rd") {
+			debug2("++ map_view_read[%s] += %d",
+				map_view, map_value)
 			map_view_read[map_view] += map_value
+
+			debug3("++ map_key_read[%s, %s] += %d",
+				map_view, map_key, map_value)
 			map_key_read[map_view, map_key] = map_value
-			if (map_skey != "")
+
+			if (map_skey != "") {
+				debug3("++ map_key_read[%s, %s] += %d",
+					map_view, map_skey, map_value)
 				map_key_read[map_view, map_skey] += map_value
-		} else { # wr
+			}
+		} else if (map_op == "wr") { # wr
+			debug2("++ map_view_write[%s] += %d",
+				map_view, map_value)
 			map_view_write[map_view] += map_value
+
+			debug3("++ map_key_write[%s, %s] += %d",
+				map_view, map_key, map_value)
 			map_key_write[map_view, map_key] = map_value
-			if (map_skey != "")
+
+			if (map_skey != "") {
+				debug3("++ map_key_write[%s, %s] += %d",
+					map_view, map_skey, map_value)
 				map_key_write[map_view, map_skey] += map_value
+			}
+		} else if (map_op == "stat_good") {
+			debug2("++ map_view_stat_good[%s] += %d",
+				map_view, map_value)
+			map_view_stat_good[map_view] += map_value
+
+			debug3("++ map_key_stat_good[%s, %s] += %d",
+				map_view, map_key, map_value)
+			map_key_stat_good[map_view, map_key] = map_value
+
+			if (map_skey != "") {
+				debug3("++ map_key_stat_good[%s, %s] += %d",
+					map_view, map_skey, map_value)
+				map_key_stat_good[map_view, map_skey] += \
+					map_value
+			}
+		} else if (map_op == "stat_fail") {
+			debug2("++ map_view_stat_fail[%s] += %d",
+				map_view, map_value)
+			map_view_stat_fail[map_view] += map_value
+
+			debug3("++ map_key_stat_fail[%s, %s] += %d",
+				map_view, map_key, map_value)
+			map_key_stat_fail[map_view, map_key] = map_value
 		}
 
 		return 1
 	}
 
-	function humanize(value,        raw, n, suffix, suffixes)
+	function humanize(value,
+		raw, n, suffix, suffixes, div, fmt, unit)
 	{
 		raw = value
+		if (mode == "data") {
+			div = 1024
+			fmt = "%'"'"'.2f%s%s"
+			unit = show_basic ? "B" : "B/s"
+		} else if (mode == "meta") {
+			div = 1000
+			fmt = "%'"'"'.1f%s%s"
+			unit = show_basic ? "" : "/s"
+		}
 		n = split(",K,M,G,T,E", suffixes, /,/)
 		for (suffix = 1; suffix <= n; suffix++) {
-			if (int(value) < 1024) break
-			value /= 1024
+			if (int(value) < div) break
+			value /= div
 		}
 		if (v ~ /\./) sub(/\.?0+$/, "", v)
-		value = sprintf("%'"'"'.2f%s%s", value, suffixes[suffix],
-			show_bytes ? "B" : "B/s")
+		value = sprintf(fmt, value, suffixes[suffix], unit)
 		return value
 	}
 
@@ -2411,36 +2864,67 @@ EOF
 		if (time_delta < 1) time_delta = 1 # prevent division-by-0
 		debug1("Time delta is %d seconds", time_delta)
 
-		read_total = map_view_read[curview]
-		read_rate = read_total / time_delta
-		read_bar = ""
+		if (data_mode) {
+			read_total = map_view_read[curview]
+			read_rate = read_total / time_delta
+			read_bar = ""
 
-		write_total = map_view_write[curview]
-		write_rate = write_total / time_delta
-		write_bar = ""
+			write_total = map_view_write[curview]
+			write_rate = write_total / time_delta
+			write_bar = ""
 
-		rw_total = read_total + write_total
-		rw_rate = rw_total / time_delta
+			rw_total = read_total + write_total
+			rw_rate = rw_total / time_delta
+		}
+
+		if (meta_mode) {
+			stat_good_total = map_view_stat_good[curview]
+			stat_good_rate = stat_good_total / time_delta
+			stat_good_bar = ""
+
+			stat_fail_total = map_view_stat_fail[curview]
+			stat_fail_rate = stat_fail_total / time_delta
+			stat_fail_bar = ""
+
+			stat_all_total = stat_good_total + stat_fail_total
+			stat_all_rate = stat_all_total / time_delta
+		}
 
 		if (output_json) {
 			json_out = ""
 			json_out = json_add_uint(json_out, "time", tm)
 			json_out = json_add_str(json_out,
 				"ident", "total_" curview)
-			json_out = json_add_uint(json_out,
-				"total_bytes", rw_total)
-			json_out = json_add_float(json_out,
-				"total_rate", rw_rate)
-			json_out = json_add_uint(json_out,
-				"read_bytes", read_total)
-			json_out = json_add_float(json_out,
-				"read_rate", read_rate)
-			json_out = json_add_uint(json_out,
-				"write_bytes", write_total)
-			json_out = json_add_float(json_out,
-				"write_rate", write_rate)
+			if (data_mode) {
+				json_out = json_add_uint(json_out,
+					"total_bytes", rw_total)
+				json_out = json_add_float(json_out,
+					"total_rate", rw_rate)
+				json_out = json_add_uint(json_out,
+					"read_bytes", read_total)
+				json_out = json_add_float(json_out,
+					"read_rate", read_rate)
+				json_out = json_add_uint(json_out,
+					"write_bytes", write_total)
+				json_out = json_add_float(json_out,
+					"write_rate", write_rate)
+			}
+			if (meta_mode) {
+				json_out = json_add_uint(json_out,
+					"stat_total", stat_all_total)
+				json_out = json_add_float(json_out,
+					"stat_rate", stat_all_rate)
+				json_out = json_add_uint(json_out,
+					"stat_good_total", stat_good_total)
+				json_out = json_add_float(json_out,
+					"stat_good_rate", stat_good_rate)
+				json_out = json_add_uint(json_out,
+					"stat_fail_total", stat_fail_total)
+				json_out = json_add_float(json_out,
+					"stat_fail_rate", stat_fail_rate)
+			}
 			buffer_add("{" json_out "}\n")
-		} else if (show_bytes) {
+		} else if (show_basic && mode == "data") {
 			# ST: VIEWS
 			if (view == "PID") {
 				buffer_add3("*", "total", "*", "*",
@@ -2453,7 +2937,22 @@ EOF
 					humanize(read_total), read_bar,
 					write_bar, humanize(write_total))
 			}
-		} else {
+		} else if (show_basic && mode == "meta") {
+			# ST: VIEWS
+			if (view == "PID") {
+				buffer_add3("*", "total", "*", "*",
+					humanize(stat_all_total),
+					humanize(stat_good_total),
+					stat_good_bar, stat_fail_bar,
+					humanize(stat_fail_total))
+			} else {
+				buffer_add1("*", "total",
+					humanize(stat_all_total),
+					humanize(stat_good_total),
+					stat_good_bar, stat_fail_bar,
+					humanize(stat_fail_total))
+			}
+		} else if (mode == "data") {
 			# ST: VIEWS
 			if (view == "PID") {
 				buffer_add3("*", "total", "*", "*",
@@ -2465,6 +2964,21 @@ EOF
 					humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))
+			}
+		} else if (mode == "meta") {
+			# ST: VIEWS
+			if (view == "PID") {
+				buffer_add3("*", "total", "*", "*",
+					humanize(stat_all_rate),
+					humanize(stat_good_rate),
+					stat_good_bar, stat_fail_bar,
+					humanize(stat_fail_rate))
+			} else {
+				buffer_add1("*", "total",
+					humanize(stat_all_rate),
+					humanize(stat_good_rate),
+					stat_good_bar, stat_fail_bar,
+					humanize(stat_fail_rate))
 			}
 		}
 
@@ -2478,9 +2992,21 @@ EOF
 				v = int(map_key_read[curview, cred])
 			} else if (sort == "write") {
 				v = int(map_key_write[curview, cred])
-			} else {
-				v = int(map_key_read[curview, cred]) + \
-					int(map_key_write[curview, cred])
+			} else if (sort == "good") {
+				v = int(map_key_stat_good[curview, cred])
+			} else if (sort == "fail") {
+				v = int(map_key_stat_fail[curview, cred])
+			} else { # total
+				v = 0
+				if (data_mode) {
+					v += map_key_read[curview, cred]
+					v += map_key_write[curview, cred]
+				}
+				if (meta_mode) {
+					v += map_key_stat_good[curview, cred]
+					v += map_key_stat_fail[curview, cred]
+				}
+				v = int(v)
 			}
 			if (cred ~ /^\*, /) v++ # Sort subtotals above
 			_keys[cred] = sprintf("%99d %s", v, cred)
@@ -2496,30 +3022,36 @@ EOF
 			debug2("r=[%d] table_rows=[%d]", r, table_rows)
 			cred = _keys_sorted[i]
 			sub(/^ *[^ ]+ +/, "", cred) # Undecorate
-			r += process_cred(curview, cred,
-				read_total, write_total)
+			r += process_cred(curview, cred)
 		}
 		if (more = i > 0) buffer_add(sprintf("%s(%d more) ... %s",
 			color ? inv bold yellow : "", i,
 			color ? noinv nobold fgreset : ""))
 	}
 
-	function process_cred(curview, cred, read_total, write_total,
+	function process_cred(curview, cred,
+		read_total, write_total,
 		cred_read, read_bar, read_bar_pct, read_bar_size, read_rate,
 		cred_write, write_bar, write_bar_pct, write_bar_size,
-		write_rate, cred_rw, rw_rate, pch, _cred, key)
+		write_rate, cred_rw, rw_rate, pch, _cred, key,
+		good_total, fail_total,
+		cred_good, good_bar, good_bar_pct, good_bar_size, good_rate,
+		cred_fail, fail_bar, fail_bar_pct, fail_bar_size,
+		fail_rate, cred_total, total_rate)
 	{
 		pch = "="
-		if (show_aggregates) {
+		if (show_aggregates && !output_json) {
 			if (curview == "type") {
 				if (cred != "*") {
-					if (view_aggregates) return 0
+					if (filter_type || view_aggregates)
+						return 0
 				} else {
 					if (output_json) return 0
 				}
 			} else {
 				if (cred !~ /^\*, /) {
-					if (view_aggregates) return 0
+					if (filter_type || view_aggregates)
+						return 0
 					pch = "-"
 				}
 			}
@@ -2527,29 +3059,63 @@ EOF
 		debug1("-> process_cred(curview = %s, ...)", curview)
 		debug1("+ cred=[%s]", cred)
 
-		cred_read = map_key_read[curview, cred]
-		cred_write = map_key_write[curview, cred]
-		cred_rw = cred_read + cred_write
+		if (data_mode) {
+			read_total = map_view_read[curview]
+			write_total = map_view_write[curview]
 
-		read_rate = cred_read / time_delta
-		if (read_total > 0)
-			read_bar_pct = cred_read / read_total
-		else
-			read_bar_pct = 0
-		read_bar_size = bar_size * read_bar_pct
-		read_bar = sprintf("%*s", read_bar_size, "")
-		gsub(/ /, pch, read_bar)
-		sub(/^./, "<", read_bar)
+			cred_read = map_key_read[curview, cred]
+			cred_write = map_key_write[curview, cred]
+			cred_rw = cred_read + cred_write
 
-		write_rate = cred_write / time_delta
-		if (write_total > 0)
-			write_bar_pct = cred_write / write_total
-		else
-			write_bar_pct = 0
-		write_bar_size = bar_size * write_bar_pct
-		write_bar = sprintf("%*s", write_bar_size, "")
-		gsub(/ /, pch, write_bar)
-		sub(/.$/, ">", write_bar)
+			read_rate = cred_read / time_delta
+			if (read_total > 0)
+				read_bar_pct = cred_read / read_total
+			else
+				read_bar_pct = 0
+			read_bar_size = bar_size * read_bar_pct
+			read_bar = sprintf("%*s", read_bar_size, "")
+			gsub(/ /, pch, read_bar)
+			sub(/^./, "<", read_bar)
+
+			write_rate = cred_write / time_delta
+			if (write_total > 0)
+				write_bar_pct = cred_write / write_total
+			else
+				write_bar_pct = 0
+			write_bar_size = bar_size * write_bar_pct
+			write_bar = sprintf("%*s", write_bar_size, "")
+			gsub(/ /, pch, write_bar)
+			sub(/.$/, ">", write_bar)
+		}
+
+		if (meta_mode) {
+			good_total = map_view_stat_good[curview]
+			fail_total = map_view_stat_fail[curview]
+
+			cred_good = map_key_stat_good[curview, cred]
+			cred_fail = map_key_stat_fail[curview, cred]
+			cred_total = cred_good + cred_fail
+
+			good_rate = cred_good / time_delta
+			if (good_total > 0)
+				good_bar_pct = cred_good / good_total
+			else
+				good_bar_pct = 0
+			good_bar_size = bar_size * good_bar_pct
+			good_bar = sprintf("%*s", good_bar_size, "")
+			gsub(/ /, pch, good_bar)
+			sub(/^./, "<", good_bar)
+
+			fail_rate = cred_fail / time_delta
+			if (fail_total > 0)
+				fail_bar_pct = cred_fail / fail_total
+			else
+				fail_bar_pct = 0
+			fail_bar_size = bar_size * fail_bar_pct
+			fail_bar = sprintf("%*s", fail_bar_size, "")
+			gsub(/ /, pch, fail_bar)
+			sub(/.$/, ">", fail_bar)
+		}
 
 		if (!no_names) {
 			_cred = cred
@@ -2561,7 +3127,14 @@ EOF
 			if (cred != _cred) debug1("+ cred=[%s]", cred)
 		}
 
-		rw_rate = cred_rw / time_delta
+		if (data_mode) {
+			rw_rate = cred_rw / time_delta
+		}
+
+		if (meta_mode) {
+			total_rate = cred_total / time_delta
+		}
+
 		if (curview != "type") {
 			# ST: TRACEDATA
 			split(cred, key, /, /)
@@ -2606,20 +3179,39 @@ EOF
 				json_out = json_add_str(json_out,
 					"fstype", fstype)
 			}
-			json_out = json_add_uint(json_out,
-				"total_bytes", cred_rw)
-			json_out = json_add_float(json_out,
-				"total_rate", rw_rate)
-			json_out = json_add_uint(json_out,
-				"read_bytes", cred_read)
-			json_out = json_add_float(json_out,
-				"read_rate", read_rate)
-			json_out = json_add_uint(json_out,
-				"write_bytes", cred_write)
-			json_out = json_add_float(json_out,
-				"write_rate", write_rate)
+			if (data_mode) {
+				json_out = json_add_uint(json_out,
+					"total_bytes", cred_rw)
+				json_out = json_add_float(json_out,
+					"total_rate", rw_rate)
+				json_out = json_add_uint(json_out,
+					"read_bytes", cred_read)
+				json_out = json_add_float(json_out,
+					"read_rate", read_rate)
+				json_out = json_add_uint(json_out,
+					"write_bytes", cred_write)
+				json_out = json_add_float(json_out,
+					"write_rate", write_rate)
+			}
+			if (meta_mode) {
+				json_out = json_add_uint(json_out,
+					"stat_total", cred_total)
+				json_out = json_add_float(json_out,
+					"stat_rate", total_rate)
+				json_out = json_add_uint(json_out,
+					"stat_good_total", cred_good)
+				json_out = json_add_float(json_out,
+					"stat_good_rate", good_rate)
+				if (fstype == "*" ||
+				    (curview == "type" && cred == "*")) {
+					json_out = json_add_uint(json_out,
+						"stat_fail_total", cred_fail)
+					json_out = json_add_float(json_out,
+						"stat_fail_rate", fail_rate)
+				}
+			}
 			buffer_add("{" json_out "}\n")
-		} else if (show_bytes) {
+		} else if (show_basic && mode == "data") {
 			# ST: VIEWDATA
 			if (curview == "pid") {
 				buffer_add3(fstype, cred, user, comm,
@@ -2631,7 +3223,19 @@ EOF
 					humanize(cred_read), read_bar,
 					write_bar, humanize(cred_write))
 			}
-		} else {
+		} else if (show_basic && mode == "meta") {
+			# ST: VIEWDATA
+			if (curview == "pid") {
+				buffer_add3(fstype, cred, user, comm,
+					humanize(cred_total),
+					humanize(cred_good), good_bar,
+					fail_bar, humanize(cred_fail))
+			} else {
+				buffer_add1(fstype, cred, humanize(cred_total),
+					humanize(cred_good), good_bar,
+					fail_bar, humanize(cred_fail))
+			}
+		} else if (mode == "data") {
 			# ST: VIEWDATA
 			if (curview == "pid") {
 				buffer_add3(fstype, cred, user, comm,
@@ -2642,6 +3246,18 @@ EOF
 				buffer_add1(fstype, cred, humanize(rw_rate),
 					humanize(read_rate), read_bar,
 					write_bar, humanize(write_rate))
+			}
+		} else if (mode == "meta") {
+			# ST: VIEWDATA
+			if (curview == "pid") {
+				buffer_add3(fstype, cred, user, comm,
+					humanize(total_rate),
+					humanize(good_rate), good_bar,
+					fail_bar, humanize(fail_rate))
+			} else {
+				buffer_add1(fstype, cred, humanize(total_rate),
+					humanize(good_rate), good_bar,
+					fail_bar, humanize(fail_rate))
 			}
 		}
 
@@ -2667,7 +3283,12 @@ EOF
 	#
 
 	/^===/ { # Data start
-		read_total = write_total = 0
+		if (data_mode) {
+			read_total = write_total = 0
+		}
+		if (meta_mode) {
+			stat_good_total = stat_fail_total = 0
+		}
 		clear_data()
 		clear_buffer()
 		next

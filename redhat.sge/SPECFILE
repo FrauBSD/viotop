@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop with SGE support
 License: BSD
-Version: 8.7.1
+Version: 9.0
 Release: 1
 Buildarch: noarch
 
@@ -83,6 +83,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Mon Jun 29 2020 Devin Teske <dteske@fraubsd.org> 9.0-1
+- 79a1fd4 Add -m/-M for monitoring metadata requests
 * Fri Jun 26 2020 Devin Teske <dteske@fraubsd.org> 8.7.1-1
 - 9bd2d03 Alphabetize usage options
 * Sat Jun 13 2020 Devin Teske <dteske@fraubsd.org> 8.7-1

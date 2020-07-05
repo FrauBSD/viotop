@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-06-29 15:52:35 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-07-04 17:35:51 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -41,11 +41,12 @@
 
 DEFAULT_INTERVAL=2.0 # seconds
 
-DEFAULT_SORT=total # Choices (case-insensitive): total read write in out
+DEFAULT_SORT=total
+	# Choices (case-insensitive): total read write in out good fail
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 9.0 $'
+VERSION='$Version: 9.0.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -1878,12 +1879,12 @@ EOF
 	-v nsamples=${NSAMPLES:-0} \
 	-v output_json=${OUTPUT_JSON:-0} \
 	-v quiet=${QUIET:-0} \
-	-v sort="$SORT" \
 	-v raw_view=${RAW_VIEW:-0} \
 	-v redact=${REDACT:-0} \
 	-v rows=$rows \
 	-v show_aggregates=${SHOW_AGGREGATES:-0} \
 	-v show_basic=${SHOW_BASIC:-0} \
+	-v sort="$SORT" \
 	-v stderr=/dev/stderr \
 	-v view="$VIEW" \
 	-v view_aggregates=${VIEW_AGGREGATES:-0} \
@@ -2506,8 +2507,9 @@ EOF
 			if (arg1 !~ unredacted_groups)
 				arg1 = get_random(length(arg1))
 		}
-		if (length(arg1) > csz["view"])
+		if (length(arg1) > csz["view"]) {
 			arg1 = substr(arg1, 1, csz["view"])
+		}
 		if (show_vfs_column) {
 			if (show_bar_column) {
 				str = sprintf(fmt, vfs, arg1, total, read,

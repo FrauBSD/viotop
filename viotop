@@ -4,7 +4,7 @@
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
 # $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-07-04 17:35:51 -0700 freebsdfrau $
+# $FrauBSD: viotop/viotop 2020-07-06 18:24:39 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -41,12 +41,17 @@
 
 DEFAULT_INTERVAL=2.0 # seconds
 
+#
+# Sorting choices (case-insensitive):
+# 	total (in any mode; default sort column)
+# 	read write in out (without `-m')
+# 	good fail (with `-m')
+#
 DEFAULT_SORT=total
-	# Choices (case-insensitive): total read write in out good fail
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 9.0.1 $'
+VERSION='$Version: 9.0.2 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -2495,8 +2500,8 @@ EOF
 		buffer_add_header()
 	}
 
-	function buffer_add1(vfs, arg1, total, read, read_bar, write_bar,
-		write, prefix, suffix,        str)
+	function buffer_add1(vfs, arg1, total, value1, bar1, bar2,
+		value2, prefix, suffix,        str)
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
@@ -2512,18 +2517,18 @@ EOF
 		}
 		if (show_vfs_column) {
 			if (show_bar_column) {
-				str = sprintf(fmt, vfs, arg1, total, read,
-					bar_size, read_bar, bar_size,
-					write_bar, write)
+				str = sprintf(fmt, vfs, arg1, total, value1,
+					bar_size, bar1, bar_size,
+					bar2, value2)
 			} else {
-				str = sprintf(fmt, vfs, arg1, total, read,
-					write)
+				str = sprintf(fmt, vfs, arg1, total, value1,
+					value2)
 			}
 		} else if (show_bar_column) {
-			str = sprintf(fmt, arg1, total, read, bar_size,
-				read_bar, bar_size, write_bar, write)
+			str = sprintf(fmt, arg1, total, value1, bar_size,
+				bar1, bar_size, bar2, value2)
 		} else {
-			str = sprintf(fmt, arg1, total, read, write)
+			str = sprintf(fmt, arg1, total, value1, value2)
 		}
 		if (cols < fmtsz) {
 			str = substr(str, 1, cols) (str ~ /\n$/ ? "\n" : "")
@@ -2531,8 +2536,8 @@ EOF
 		buffer_add(prefix str suffix)
 	}
 
-	function buffer_add3(vfs, arg1, arg2, arg3, total, read, read_bar,
-		write_bar, write, prefix, suffix,        str, show2, show3)
+	function buffer_add3(vfs, arg1, arg2, arg3, total, value1, bar1,
+		bar2, value2, prefix, suffix,        str, show2, show3)
 	{
 		if (length(vfs) > csz["vfs"])
 			vfs = substr(vfs, 1, csz["vfs"])
@@ -2549,25 +2554,25 @@ EOF
 		if (show_vfs_column) {
 			if (show_bar_column) {
 				str = sprintf(fmt, vfs, arg1, arg2, arg3,
-					total, read, bar_size, read_bar,
-					bar_size, write_bar, write)
+					total, value1, bar_size, bar1,
+					bar_size, bar2, value2)
 			} else if (show_rw_columns) {
 				str = sprintf(fmt, vfs, arg1, arg2, arg3,
-					total, read, write)
+					total, value1, value2)
 			} else if (show3) {
 				str = sprintf(fmt, vfs, arg1, arg2, arg3,
-					total, read, write)
+					total, value1, value2)
 			} else if (show2) {
 				str = sprintf(fmt, vfs, arg1, arg2, total)
 			} else {
 				str = sprintf(fmt, vfs, arg1, total)
 			}
 		} else if (show_bar_column) {
-			str = sprintf(fmt, arg1, arg2, arg3, total, read,
-				bar_size, read_bar, bar_size, write_bar, write)
+			str = sprintf(fmt, arg1, arg2, arg3, total, value1,
+				bar_size, bar1, bar_size, bar2, value2)
 		} else if (show_rw_columns) {
-			str = sprintf(fmt, arg1, arg2, arg3, total, read,
-				write)
+			str = sprintf(fmt, arg1, arg2, arg3, total, value1,
+				value2)
 		} else if (show3) {
 			str = sprintf(fmt, arg1, arg2, arg3, total)
 		} else if (show2) {
@@ -2860,6 +2865,9 @@ EOF
 		read_bar, read_rate, read_total,
 		write_bar, write_rate, write_total,
 		rw_rate, rw_total,
+		stat_good_bar, stat_good_rate,
+		stat_fail_bar, stat_fail_rate,
+		stat_all_rate, stat_all_total,
 		_keys_sorted, cred, i, v, r, n, table_rows)
 	{
 		time_delta = times[2] - times[1]

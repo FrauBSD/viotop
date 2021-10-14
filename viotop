@@ -3,8 +3,8 @@
 ############################################################ IDENT(1)
 #
 # $Title: Script to generate top-like statistics for VFS I/O under Linux $
-# $Copyright: 2020 Devin Teske. All rights reserved. $
-# $FrauBSD: viotop/viotop 2020-07-06 18:24:39 -0700 freebsdfrau $
+# $Copyright: 2020-2021 Devin Teske. All rights reserved. $
+# $FrauBSD: viotop/viotop 2021-10-14 15:51:01 -0700 freebsdfrau $
 #
 ############################################################ INFORMATION
 #
@@ -51,7 +51,7 @@ DEFAULT_SORT=total
 
 ############################################################ GLOBALS
 
-VERSION='$Version: 9.0.2 $'
+VERSION='$Version: 9.1 $'
 
 pgm="${0##*/}" # Program basename
 
@@ -92,6 +92,20 @@ VIEW_PID=				# -p (default)
 VIEW_TYPE=				# -t
 VIEW_USER=				# -u
 WIDE_VIEW=				# -w
+
+#
+# Probes
+# NB: Dependent on kernel version
+# NB: export'd for awk(1) `ENVIRON' access
+#
+export KPROBE_EXECVE=kprobe:do_execve
+export KRETPROBE_EXECVE=kretprobe:do_execve
+export KPROBE_EXECVE_LEGACY=kprobe:SyS_execve
+export KRETPROBE_EXECVE_LEGACY=kretprobe:SyS_execve
+export KPROBE_VFS_FSTAT=kprobe:vfs_fstat
+export KRETPROBE_VFS_FSTAT=kretprobe:vfs_fstat
+export KPROBE_VFS_FSTAT_PRE_da9aa5d=kprobe:vfs_statx_fd
+export KRETPROBE_VFS_FSTAT_PRE_da9aa5d=kretprobe:vfs_statx_fd
 
 #
 # Miscellaneous
@@ -973,6 +987,27 @@ esac
 	fi
 
 	#
+	# Alter certain probes based on what bpftrace(8) reports from kernel
+	#
+	eval "$( bpftrace -l 2> /dev/null | awk '
+		function set(var, value) { print var "=" value }
+		function testset(var, suffix)
+		{
+			if ($0 != ENVIRON[var "_" suffix]) return 0
+			set(var, $0)
+			if (sub(/^KPROBE_/, "KRETPROBE_", var)) {
+				sub(/^kprobe:/, "kretprobe:")
+				set(var, $0)
+			}
+			return 1
+		}
+		{
+			if (testset("KPROBE_EXECVE", "LEGACY")) next
+			if (testset("KPROBE_VFS_FSTAT", "PRE_da9aa5d")) next
+		}
+	' )"
+
+	#
 	# Start background bpftrace
 	# NB: M-x package-install [RET] dtrace-script-mode [RET]
 	# ST: BPFTRACE
@@ -1234,7 +1269,7 @@ done )
 	 */
 
 ${MODE_META:+
-	kprobe:vfs_fstat
+	$KPROBE_VFS_FSTAT
 	/@trace[pid, arg0] != $DQ$DQ/
 	{
 		\$fd = arg0;
@@ -1244,7 +1279,7 @@ ${MODE_META:+
 		@fstat_fd[tid] = \$fd;
 	$CB
 
-	kretprobe:vfs_fstat
+	$KRETPROBE_VFS_FSTAT
 	/@fstat_exit[tid]/
 	{
 		\$fd = @fstat_fd[tid];
@@ -1272,21 +1307,20 @@ ${VIEW_USER:+
 
 		// ST: VIEWS TRACEDATA
 		if (\$ret != 0) {
-			\$fstype = $DQ*$DQ;
 ${VIEW_COMM:+
-			@stat_fail_comm[\$fstype, comm] = count();
+			@stat_fail_comm[$DQ*$DQ, comm] = count();
 }
 ${VIEW_GROUP:+
-			@stat_fail_group[\$fstype, gid] = count();
+			@stat_fail_group[$DQ*$DQ, gid] = count();
 }
 ${VIEW_PID:+
-			@stat_fail_pid[\$fstype, pid, uid, comm] = count();
+			@stat_fail_pid[$DQ*$DQ, pid, uid, comm] = count();
 }
 ${VIEW_TYPE:+
-			@stat_fail_type[\$fstype] = count();
+			@stat_fail_type[$DQ*$DQ] = count();
 }
 ${VIEW_USER:+
-			@stat_fail_user[\$fstype, uid] = count();
+			@stat_fail_user[$DQ*$DQ, uid] = count();
 }
 		$CB
 
@@ -1403,21 +1437,20 @@ ${VIEW_USER:+
 
 		// ST: VIEWS TRACEDATA
 		if (\$ret != 0) {
-			\$fstype = $DQ*$DQ;
 ${VIEW_COMM:+
-			@stat_fail_comm[\$fstype, comm] = count();
+			@stat_fail_comm[$DQ*$DQ, comm] = count();
 }
 ${VIEW_GROUP:+
-			@stat_fail_group[\$fstype, gid] = count();
+			@stat_fail_group[$DQ*$DQ, gid] = count();
 }
 ${VIEW_PID:+
-			@stat_fail_pid[\$fstype, pid, uid, comm] = count();
+			@stat_fail_pid[$DQ*$DQ, pid, uid, comm] = count();
 }
 ${VIEW_TYPE:+
-			@stat_fail_type[\$fstype] = count();
+			@stat_fail_type[$DQ*$DQ] = count();
 }
 ${VIEW_USER:+
-			@stat_fail_user[\$fstype, uid] = count();
+			@stat_fail_user[$DQ*$DQ, uid] = count();
 }
 		$CB
 
@@ -2095,7 +2128,7 @@ EOF
 		show_vfs_column = 1
 
 		vfssz = 8
-		pidsz = 6
+		pidsz = 7
 		vsz_min = length(view)
 		commsz = 15
 		commsz_min = length("COMM")

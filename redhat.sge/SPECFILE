@@ -9,7 +9,7 @@ Group: Applications/FrauBSD
 
 Summary: viotop with SGE support
 License: BSD
-Version: 9.0.2
+Version: 9.1
 Release: 1
 Buildarch: noarch
 
@@ -83,6 +83,8 @@ WWW: https://www.fraubsd.org/viotop
 
 
 %changelog
+* Thu Oct 14 2021 Devin Teske <dteske@fraubsd.org> 9.1-1
+- 84f72e8 Fix viotop for Ubuntu 20+ and CentOS 8+
 * Mon Jul  6 2020 Devin Teske <dteske@fraubsd.org> 9.0.2-1
 - 7435894 Minor changes
 * Sat Jul  4 2020 Devin Teske <dteske@fraubsd.org> 9.0.1-1
